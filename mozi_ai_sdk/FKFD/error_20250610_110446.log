@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "D:/Workplace/moziai/mozi_ai_sdk/FKFD/testBlue.py", line 1640, in <module>
+    main()
+  File "D:/Workplace/moziai/mozi_ai_sdk/FKFD/testBlue.py", line 1636, in main
+    run(env)
+  File "D:/Workplace/moziai/mozi_ai_sdk/FKFD/testBlue.py", line 1470, in run
+    model = Al(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a)
+  File "D:\Workplace\moziai\mozi_ai_sdk\FKFD\WTA\TS_WTA.py", line 23, in __init__
+    self.DES = self.Pij * self.Wei
+ValueError: operands could not be broadcast together with shapes (13,13) (1,11) 
