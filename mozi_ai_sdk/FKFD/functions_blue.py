@@ -429,7 +429,7 @@ def evaluate_targets(targets_info, facilities_in_info):
             facility_name = facility[2]  # strName
             damage_str = facility[5]  # strDamageState，形如 '0.6'
             try:
-                damage_value = float(damage_str)
+                damage_value = float(damage_str)/100
             except:
                 damage_value = 0.0  # 默认值
             damage_dict[facility_name] = damage_value

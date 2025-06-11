@@ -416,10 +416,10 @@ def run(env):
             '''
             if step_count == 1 or step_count > trigger and (step_count - trigger) % 30 == 0:
                 #  配对产生：设计算法和模型
-                if len(weapon_num) > 0:
+                if len(weapon_num) > 0 and  len(targets_in_info) > 0:
                     pij = pij_generate(targets_in_info, acs_assign_weapon)
                     value = evaluate_targets(targets_in_info, facilities_in_info)
-                    # logging.info(f'武器长度{len(acs_assign_weapon)}, 目标长度{len(targets_in_info)}')
+                    # logging.info(f'价值评估{value}')
                     # 初始化算法
                     solver = WTA_GA(pij, value, weapon_num, pop_size=30, generations=100)
                     plan, b_fitness = solver.evolve()
@@ -746,7 +746,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in L1_target]
-            print(f'L1:L1_target_inf',L1_target_inf)
+            # print(f'L1:L1_target_inf',L1_target_inf)
             Threat_L1, Damage_L1, Base_L1 = AHP_TA(L1_target_inf).run()
             # 生成目标威胁值
             # Threat_L1 = [1 for d in range(1, L1_target_sum + 1)]
@@ -769,7 +769,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in L2_target]
-            print(f'L2:L2_target_inf', L2_target_inf)
+            # print(f'L2:L2_target_inf', L2_target_inf)
             Threat_L2, Damage_L2, Base_L2 = AHP_TA(L2_target_inf).run()
             # 生成目标威胁值
             # Threat_L2 = [1 for d in range(1, L2_target_sum + 1)]
