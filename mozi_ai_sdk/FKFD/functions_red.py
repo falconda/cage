@@ -2,6 +2,30 @@ import numpy as np
 from math import sin, cos, sqrt, atan2, radians
 import re
 
+
+def transpose(data):
+    # Case 1: 一维普通列表 → 转列向量
+    if isinstance(data, list) and all(not isinstance(i, (list, np.ndarray)) for i in data):
+        return [[i] for i in data]
+
+    # Case 2: 只有一行的二维列表 → 转列向量
+    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], list):
+        return [[i] for i in data[0]]
+
+    # Case 3: 正常二维列表 → 转置
+    if isinstance(data, list) and all(isinstance(i, list) for i in data):
+        return [list(col) for col in zip(*data)]
+
+    # Case 4: numpy array 构成的列表 → 提取每个 array 的第一行转置
+    if isinstance(data, list) and all(isinstance(i, np.ndarray) for i in data):
+        try:
+            rows = [arr[0] for arr in data]
+        except IndexError:
+            raise ValueError("numpy 数组的维度必须至少为 2D，例如 shape 为 (1, N)")
+        return [list(col) for col in zip(*rows)]
+
+    raise TypeError("不支持的输入类型，请传入一维列表、二维列表、或 numpy array 列表")
+
 # 得到距离目标最近的武器平台
 def weapon_from_target(weapon_list, target_list):
     init_dis = np.inf
@@ -217,12 +241,18 @@ weapon_info = {
     'S3': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
            'vel_range': (0, 2963.2),
            'name': 'HQ-17(S1-3)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S4': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+           'vel_range': (0, 2963.2),
+           'name': 'HQ-17(S1-4)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M1': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
            'vel_range': (0, 2963.2),
            'name': 'HQ-16B(M1-1)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
     'M2': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
            'vel_range': (0, 2963.2),
            'name': 'HQ-16B(M1-2)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
+    'M3': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
+           'vel_range': (0, 2963.2),
+           'name': 'HQ-16B(M1-3)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
     'L1': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000001225', 'hit_range': (2, 80), 'height_range': (9, 24384),
            'vel_range': (0, 4907.8),
            'name': 'HQ-9A(L1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 12, 'original': 6},
@@ -235,24 +265,33 @@ weapon_info = {
     'S33': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
             'vel_range': (0, 2963.2),
             'name': 'HQ-17(S2-3)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S44': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+            'vel_range': (0, 2963.2),
+            'name': 'HQ-17(S2-4)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M11': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
             'vel_range': (0, 2963.2),
             'name': 'HQ-16B(M2-1)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
     'M22': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
             'vel_range': (0, 2963.2),
             'name': 'HQ-16B(M2-2)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
+    'M33': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40), 'height_range': (9, 24994),
+            'vel_range': (0, 2963.2),
+            'name': 'HQ-16B(M2-3)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
     'L2': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000001225', 'hit_range': (2, 80), 'height_range': (9, 24384),
            'vel_range': (0, 4907.8),
            'name': 'HQ-9A(L2)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 12, 'original': 6},
     'S111': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
              'vel_range': (0, 2963.2),
-             'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+             'name': 'HQ-17(S3-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'S222': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
              'vel_range': (0, 2963.2),
-             'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+             'name': 'HQ-17(S3-2)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'S333': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
              'vel_range': (0, 2963.2),
-             'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+             'name': 'HQ-17(S3-3)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S444': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+             'vel_range': (0, 2963.2),
+             'name': 'HQ-17(S3-4)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M111': {'num_weapon': 12, 'guid': 'hsfw-dataweapon-00000000003392', 'hit_range': (2, 40),
              'height_range': (9, 24994), 'vel_range': (0, 2963.2),
              'name': 'HQ-16B(M3-1)', 'rocket': 0.5, 'pof': 0.85, 'num_storage': 6, 'init_num': 12, 'original': 4},
@@ -297,10 +336,16 @@ weapon_info_cluster = {
     'S3': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
            'vel_range': (0, 2963.2),
            'name': 'HQ-17(S1-3)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S4': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+           'vel_range': (0, 2963.2),
+           'name': 'HQ-17(S1-4)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M1': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
            'vel_range': (0, 12239.8),
            'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
     'M2': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
+           'vel_range': (0, 12239.8),
+           'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
+    'M3': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
            'vel_range': (0, 12239.8),
            'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
     'L1': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
@@ -315,10 +360,16 @@ weapon_info_cluster = {
     'S33': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
             'vel_range': (0, 2963.2),
             'name': 'HQ-17(S2-3)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S44': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+            'vel_range': (0, 2963.2),
+            'name': 'HQ-17(S2-4)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M11': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
            'vel_range': (0, 12239.8),
            'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
     'M22': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
+           'vel_range': (0, 12239.8),
+           'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
+    'M33': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
            'vel_range': (0, 12239.8),
            'name': 'S-400(SL)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 4, 'init_num': 16, 'original': 8},
     'L2': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),
@@ -331,6 +382,9 @@ weapon_info_cluster = {
              'vel_range': (0, 2963.2),
              'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'S333': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
+             'vel_range': (0, 2963.2),
+             'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
+    'S444': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000003211', 'hit_range': (1, 9), 'height_range': (9, 6096),
              'vel_range': (0, 2963.2),
              'name': 'HQ-17(S1-1)', 'rocket': 0.5, 'pof': 0.8, 'num_storage': 8, 'init_num': 8, 'original': 2},
     'M111': {'num_weapon': 8, 'guid': 'hsfw-dataweapon-00000000002104', 'hit_range': (2, 209), 'height_range': (9, 38100),

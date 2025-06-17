@@ -18,6 +18,22 @@ DDDDTargetPenetration = {
     "S-2导弹[12万吨 核弹炸药]": "中"
 }
 
+# DD的射程
+MissileTargetRange = {
+    "战斧-3000亚声速反舰/对陆导弹": 2500,
+    'AGM-114N型“地狱火II”空对地导弹[温压弹]': 9.26,
+    "吸气式高超声速导弹": 555.6,
+    "GBU-38(V)1/B联合直接攻击炸弹": 22.224,
+    "GBU-53/B 小直径炸弹II": 111.12,
+    "AGM-65K型“小牛”空地战术导弹": 14.816,
+    "AGM-65G2型“小牛”空地战术导弹": 14.816,
+    "“流星-3”型中程弹道导弹[常规弹头]": 1296,
+    "巡飞弹": 5,
+    "无人机抛射弹": 87,
+    "“北极星-2”潜射中程弹道导弹弹头": 2748,
+    "S-2导弹[12万吨 核弹炸药]": 3055.8
+}
+
 # DD的DP值，代替毁伤
 MissileTargetDP = {
     "战斧-3000亚声速反舰/对陆导弹": 454,
@@ -102,7 +118,8 @@ PlaneAttack = {
                "修正系数": 0.7, "武器精度系数": 0.9, "最大载弹量": 1.25
                },
     "诡骗丽影无人战斗机": {"最大航程": 3889.2, "翼展": 18.92, "全长": 18.92, "RCS": 0.0012, "最大使用过载": 4, "最低突防高度": 100,
-                  "最高突防速度": 1101.94,"武器射程": 111.12, "武器数量": 8, "机上外挂点": 0, "电子对抗能力系数": 0.8, "导航能力系数": 0.8, "发现目标能力系数": 0.9, "装甲系数": 0.8,
+                  "最高突防速度": 1101.94, "武器射程": 111.12, "武器数量": 8, "机上外挂点": 0, "电子对抗能力系数": 0.8, "导航能力系数": 0.8,
+                  "发现目标能力系数": 0.9, "装甲系数": 0.8,
                   "修正系数": 0.7, "武器精度系数": 0.9, "最大载弹量": 1.25
                   },
     "F-16DJ战斗机": {"最大航程": 3000, "翼展": 9.5, "全长": 14.5, "RCS": 1.6, "最大使用过载": 8, "最低突防高度": 100, "最高突防速度": 1713.1,
@@ -163,8 +180,8 @@ PlaneSupport = {
                       "探测距离": 111.12, "干扰距离": 0, "跟踪目标数": 0, "引导目标数": 0, "侦察能力系数": 1, "电子对抗能力系数": 0.4, "续航": 24
                       },
     "U-2S侦察机": {"最大航程": 8000, "翼展": 31.4, "全长": 19.2, "RCS": 39.8, "最高飞行速度": 796.36, "升限": 25908, "通信能力系数": 0.4,
-               "探测距离": 0, "干扰距离": 0, "跟踪目标数": 0, "引导目标数": 0, "侦察能力系数": 0.9, "电子对抗能力系数": 0.9, "续航": 8
-               },
+                "探测距离": 0, "干扰距离": 0, "跟踪目标数": 0, "引导目标数": 0, "侦察能力系数": 0.9, "电子对抗能力系数": 0.9, "续航": 8
+                },
 }
 
 
@@ -588,11 +605,8 @@ def processSingleMissileData(missile: list):
     baseDis = []
     missileInfo = []
     missileType = missile[0].split("#", 1)[0][:-1]
-    print("q")
     dp = MissileTargetDP[missileType]
-    print("1")
     rcs = MissileTargetRCS[missileType]
-    print("2")
 
     for base, position in basePosition.items():
         dx = abs((missile[3] - position[0]) * 111 * math.cos(math.radians(position[1])))
@@ -728,3 +742,43 @@ def processSingleSupportPlaneData(plane: list):
     # planeInfo.append(minValue if minValue < 0.01 else round(minValue, 2))  # 6航路捷径
 
     return planeResult, planeInfo, planeResult[0][1], minValueIndex
+
+
+def processWtaData(target):
+    targetResult = np.zeros((1, 7), dtype=object)
+    planeType = target.strName.split("#", 1)[0][:-1]  # 目标类型
+    targetResult[0][0] = target.strName  # 目标名称
+
+    # 目标类型
+    if "战斗机" in planeType:
+        targetResult[0][1] = 0
+    elif "轰炸机" in planeType:
+        targetResult[0][1] = 1
+    elif "无人机" in planeType:
+        targetResult[0][1] = 2
+    elif "预警机" in planeType or "干扰机" in planeType or "侦察机" in planeType:
+        targetResult[0][1] = 3
+    elif "弹" in planeType:
+        targetResult[0][1] = 4
+    else:
+        targetResult[0][1] = -1  # 不明目标
+
+    targetResult[0][2] = target.dLongitude  # 经度
+    targetResult[0][3] = target.dLatitude  # 纬度
+    targetResult[0][4] = target.fCurrentHeading  # 方位角
+
+    # 作战范围
+    if "弹道导弹" in planeType or "核弹" in planeType:
+        targetResult[0][5] = DDDDTargetRange[planeType]
+    elif ("导弹" in planeType and planeType.find("导弹") > 0) or "炸弹" in planeType:
+        targetResult[0][5] = MissileTargetRange[planeType]
+    elif "战斗机" in planeType or "直升机" in planeType or "轰炸机" in planeType or "女武神无人机" in planeType or "诡骗丽影无人战斗机" in planeType:
+        targetResult[0][5] = PlaneAttack[planeType]["武器射程"]
+    elif "干扰机" in planeType:
+        targetResult[0][5] = PlaneSupport[planeType]["干扰距离"]
+    elif "侦察机" in planeType or "预警机" in planeType:
+        targetResult[0][5] = PlaneSupport[planeType]["探测距离"]
+    else:
+        targetResult[0][5] = 0
+
+    return targetResult

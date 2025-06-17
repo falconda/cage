@@ -2,7 +2,6 @@ import numpy as np
 from typing import List, Dict
 import re
 # 修改一下，查看能不能上传
-# 修改一下，查看能不能上传
 def monitor_attack_results(attack_records:list, facilities_info:list, coord_tol=0.0001):
     """
     监控打击结果，更新损伤信息（使用经纬度配对目标）。适配列表结构 attack_records。
@@ -481,3 +480,88 @@ def evaluate_targets(targets_info, facilities_in_info):
             threat_array.append(0.0)
 
     return threat_array
+
+
+def extract_targets_attributes(targets_in, facilities):
+    """
+    提取打击平台的属性信息：
+        - 名称
+        - 经纬度
+        - 型号
+        - 分类（武器平台/基地/雷达）
+        - 最大射程
+        - 弹药类型 + 映射值
+        - 武器部能力
+    """
+
+    type_category_map = {
+        'HQ-17': 0,
+        'HQ-16B': 0,
+        'HQ-9A': 0,
+        'S-400E': 0,
+        '基地': 1,
+        '雷达': 2
+        # ……其他型号可以继续添加
+    }
+
+    ammo_type_map = {
+        '普通榴弹': 0,
+        '穿甲弹': 1,
+        '制导弹': 2,
+        '末敏弹': 3,
+        '集束弹': 4,
+        '战术导弹': 5,
+        '未知': -1
+    }
+
+    names = []
+    type_categories = []
+    positions = []
+    damage_state=[]
+    strike_ranges = []
+    ammo_types = []
+    ammo_type_ids = []
+    weapon_capabilities = []
+
+    for target in targets_in:
+        name = target.strName
+        lat = target.dLatitude
+        lon = target.dLongitude
+
+        coord_tol = 0.0001
+        for fac_entry in facilities:
+            fac_lat, fac_lon = fac_entry.dLatitude, fac_entry.dLongitude
+            if abs(fac_lat - lat) <= coord_tol and abs(fac_lon - lon) <= coord_tol:
+                try:
+                    damage = float(fac_entry.strDamageState)
+                except:
+                    damage = 0.0
+                break
+
+
+        type_name = extract_type_from_name(name)
+        type_category = type_category_map.get(type_name, -1)  # 若找不到则默认未知
+
+        # 默认值
+        R_max = 0
+        ammo_type = '未知'
+        ammo_type_id = -1
+        K_max = 0
+
+        if type_name in target_input_dict:
+            data = target_input_dict[type_name]
+            R_max = data.get('R', 0)
+            ammo_type = data.get('ammo_type', '未知')
+            ammo_type_id = ammo_type_map.get(ammo_type, -1)
+            K_max = data.get('K', 0)
+
+        # 加入输出列表
+        names.append(name)
+        positions.append([lat, lon])
+        type_categories.append(type_category)
+        damage_state.append(damage)
+        strike_ranges.append(R_max)
+        ammo_type_ids.append(ammo_type_id)
+        weapon_capabilities.append(K_max)
+
+    return [names, type_categories, positions, damage_state, strike_ranges, ammo_type_ids, weapon_capabilities]

@@ -16,8 +16,8 @@ from mozi_ai_sdk.FKFD.WTA.TS_WTA import TS_WTA
 
 from mozi_ai_sdk.FKFD.env.env import Environment
 from mozi_ai_sdk.FKFD.env import etc
-from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num
-from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets
+from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num, transpose
+from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets, extract_targets_attributes
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
 
 parser = argparse.ArgumentParser()
@@ -342,11 +342,13 @@ def run(env):
             # logging.info(f'facilities_info:{((facilities_info))}')
 
             facilities_in_info = []
+            facilities_in = []
             for info in facilities_info:
                 latitude = float(info[3])
                 longitude = float(info[4])
                 if 36.75 <= latitude <= 38.7 and 117.1 <= longitude <= 119.6:
                     facilities_in_info.append(info)  # Guid 在索引位置 1
+                    facilities_in.append(info[0])
             # logging.info(f'facilities_in_info:{((facilities_in_info))}')
 
             contacts_dic_blue = blue_side.get_contacts()
@@ -359,11 +361,13 @@ def run(env):
 
             # 实时筛选：区域内目标 Guid 列表
             targets_in_info = []
+            target_in = []
             for info in targets_info:
                 latitude = float(info[3])
                 longitude = float(info[4])
                 if 36.75 <= latitude <= 38.7 and 117.1 <= longitude <= 119.6:
                     targets_in_info.append(info)  # Guid 在索引位置 1
+                    target_in.append(info[0])
             # logging.info(f'targets_in_info:{(len(targets_in_info))}')
 
             # 获取有对地攻击能力的飞机类
@@ -425,6 +429,10 @@ def run(env):
                     plan, b_fitness = solver.evolve()
                     # logging.info(f'产生plan{plan}, 对应适应度{b_fitness}')
 
+                    # 数据库构建
+                    # 蓝方
+                    data = extract_targets_attributes(target_in, facilities_in)
+                    logging.info(f'数据库蓝方：{data}')
                     # 依据打击方案，记录分配情况
                     attack_records = []
                     for i in range(len(plan)):
