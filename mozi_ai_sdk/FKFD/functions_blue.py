@@ -482,9 +482,9 @@ def evaluate_targets(targets_info, facilities_in_info):
     return threat_array
 
 
-def extract_targets_attributes(targets_in, facilities):
-    """
-    提取打击平台的属性信息：
+def extract_targets_attributes(facilities_in):
+    '''
+        提取打击平台的属性信息：
         - 名称
         - 经纬度
         - 型号
@@ -492,7 +492,11 @@ def extract_targets_attributes(targets_in, facilities):
         - 最大射程
         - 弹药类型 + 映射值
         - 武器部能力
-    """
+    :param targets_in: 红方设施类的集合list，contact类
+    :param facilities: 红方设施类的集合list，facility类
+    :return: 数据库的红方部分的信息
+    '''
+
 
     type_category_map = {
         'HQ-17': 0,
@@ -523,20 +527,12 @@ def extract_targets_attributes(targets_in, facilities):
     ammo_type_ids = []
     weapon_capabilities = []
 
-    for target in targets_in:
+    for target in facilities_in:
         name = target.strName
         lat = target.dLatitude
         lon = target.dLongitude
 
-        coord_tol = 0.0001
-        for fac_entry in facilities:
-            fac_lat, fac_lon = fac_entry.dLatitude, fac_entry.dLongitude
-            if abs(fac_lat - lat) <= coord_tol and abs(fac_lon - lon) <= coord_tol:
-                try:
-                    damage = float(fac_entry.strDamageState)
-                except:
-                    damage = 0.0
-                break
+        damage = float(target.strDamageState)/100
 
 
         type_name = extract_type_from_name(name)
