@@ -7,8 +7,10 @@ import argparse
 import csv
 import random
 import numpy as np
+import pandas as pd
 import timeit
 from datetime import datetime
+from openpyxl import load_workbook
 
 from mozi_ai_sdk.FKFD.WNN import WNN_TA
 from mozi_ai_sdk.FKFD.AHP_Entropy import AHP_TA
@@ -18,6 +20,7 @@ from mozi_ai_sdk.FKFD.env.env import Environment
 from mozi_ai_sdk.FKFD.env import etc
 from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num, transpose
 from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets, extract_targets_attributes
+from mozi_ai_sdk.FKFD.dataProcess import processWtaData
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
 
 parser = argparse.ArgumentParser()
@@ -430,9 +433,56 @@ def run(env):
                     # logging.info(f'产生plan{plan}, 对应适应度{b_fitness}')
 
                     # 数据库构建
-                    # 蓝方
-                    data = extract_targets_attributes(target_in, facilities_in)
-                    logging.info(f'数据库蓝方：{data}')
+                    # 蓝方对红方的
+                    if step_count != 1:
+                        data_blue = extract_targets_attributes(facilities_in)
+                        # 蓝方的
+                        data = []
+                        for acs in acs_assign_weapon:
+                            ac = acs[0]
+                            data_ac = processWtaData(ac)
+                            data.append(data_ac)
+                        data_red = transpose(data)
+                        logging.info(f'数据库蓝方：{data_blue}')
+                        logging.info(f'数据库红方：{data_red}')
+                        qij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
+                        fij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
+                        data_log = data_blue + data_red
+                        data_log.append(len(acs_assign_weapon))
+                        data_log.append(len(targets_in_info))
+                        data_log.append(value)
+                        data_log.append(pij)
+                        data_log.append(qij)
+                        data_log.append(fij)
+                        data_log.append(plan.tolist())
+
+                        # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+                        df = pd.DataFrame([data_log])
+
+                        # Excel 文件路径
+                        file_path = '数据库输出文件.xlsx'
+
+                        if os.path.exists(file_path):
+                            # 加载已有 Excel 文件
+                            book = load_workbook(file_path)
+
+                            with pd.ExcelWriter(file_path, engine='openpyxl', mode='a') as writer:
+                                writer.book = book
+
+                                # 这里要手动设置 writer.sheets，否则是空的！
+                                writer.sheets = {ws.title: ws for ws in book.worksheets}
+
+                                # 获取目标 Sheet 的最大行数
+                                sheet = writer.sheets['Sheet1']
+                                start_row = sheet.max_row
+
+                                # 写入下一行
+                                df.to_excel(writer, index=False, header=False, startrow=start_row)
+                        else:
+                            # 文件不存在时新建文件
+                            df.to_excel(file_path, index=False, engine='openpyxl')
+
+
                     # 依据打击方案，记录分配情况
                     attack_records = []
                     for i in range(len(plan)):
@@ -628,7 +678,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in S1_target]
-            Threat_S1, Damage_S1, Base_S1 = AHP_TA(S1_target_inf).run()
+            Threat_S1, Damage_S1, Base_S1 = WNN_TA(S1_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, S1_target_sum])[0]
             qjk_s1 = np.zeros((S1_target_sum, 3))
@@ -649,7 +699,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in S2_target]
-            Threat_S2, Damage_S2, Base_S2 = AHP_TA(S2_target_inf).run()
+            Threat_S2, Damage_S2, Base_S2 = WNN_TA(S2_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, S2_target_sum])[0]
             qjk_s2 = np.zeros((S2_target_sum, 3))
@@ -670,7 +720,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in S3_target]
-            Threat_S3, Damage_S3, Base_S3 = AHP_TA(S3_target_inf).run()
+            Threat_S3, Damage_S3, Base_S3 = WNN_TA(S3_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, S3_target_sum])[0]
             qjk_s3 = np.zeros((S3_target_sum, 3))
@@ -691,7 +741,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in M1_target]
-            Threat_M1, Damage_M1, Base_M1 = AHP_TA(M1_target_inf).run()
+            Threat_M1, Damage_M1, Base_M1 = WNN_TA(M1_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, M1_target_sum])[0]
             qjk_m1 = np.zeros((M1_target_sum, 3))
@@ -712,7 +762,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in M2_target]
-            Threat_M2, Damage_M2, Base_M2 = AHP_TA(M2_target_inf).run()
+            Threat_M2, Damage_M2, Base_M2 = WNN_TA(M2_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, M2_target_sum])[0]
             qjk_m2 = np.zeros((M2_target_sum, 3))
@@ -733,7 +783,7 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in M3_target]
-            Threat_M3, Damage_M3, Base_M3 = AHP_TA(M3_target_inf).run()
+            Threat_M3, Damage_M3, Base_M3 = WNN_TA(M3_target_inf).run()
             # 目标打击基地的概率值
             # T_to_A = np.random.randint(0, 2, [1, M3_target_sum])[0]
             qjk_m3 = np.zeros((M3_target_sum, 3))
@@ -755,7 +805,7 @@ def run(env):
                  target.dLatitude,
                  target.fCurrentHeading] for target in L1_target]
             # print(f'L1:L1_target_inf',L1_target_inf)
-            Threat_L1, Damage_L1, Base_L1 = AHP_TA(L1_target_inf).run()
+            Threat_L1, Damage_L1, Base_L1 = WNN_TA(L1_target_inf).run()
             # 生成目标威胁值
             # Threat_L1 = [1 for d in range(1, L1_target_sum + 1)]
             # 目标打击基地的概率值
@@ -778,7 +828,7 @@ def run(env):
                  target.dLatitude,
                  target.fCurrentHeading] for target in L2_target]
             # print(f'L2:L2_target_inf', L2_target_inf)
-            Threat_L2, Damage_L2, Base_L2 = AHP_TA(L2_target_inf).run()
+            Threat_L2, Damage_L2, Base_L2 = WNN_TA(L2_target_inf).run()
             # 生成目标威胁值
             # Threat_L2 = [1 for d in range(1, L2_target_sum + 1)]
             # 目标打击基地的概率值

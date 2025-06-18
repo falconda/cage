@@ -745,7 +745,7 @@ def processSingleSupportPlaneData(plane: list):
 
 
 def processWtaData(target):
-    targetResult = np.zeros((1, 7), dtype=object)
+    targetResult = np.zeros((1, 5), dtype=object)
     planeType = target.strName.split("#", 1)[0][:-1]  # 目标类型
     targetResult[0][0] = target.strName  # 目标名称
 
@@ -763,22 +763,21 @@ def processWtaData(target):
     else:
         targetResult[0][1] = -1  # 不明目标
 
-    targetResult[0][2] = target.dLongitude  # 经度
-    targetResult[0][3] = target.dLatitude  # 纬度
-    targetResult[0][4] = target.fCurrentHeading  # 方位角
+    targetResult[0][2] = [target.dLongitude, target.dLatitude] # 经度纬度
+    targetResult[0][3] = target.fCurrentHeading  # 方位角
 
     # 作战范围
     if "弹道导弹" in planeType or "核弹" in planeType:
-        targetResult[0][5] = DDDDTargetRange[planeType]
+        targetResult[0][4] = DDDDTargetRange[planeType]
     elif ("导弹" in planeType and planeType.find("导弹") > 0) or "炸弹" in planeType:
-        targetResult[0][5] = MissileTargetRange[planeType]
+        targetResult[0][4] = MissileTargetRange[planeType]
     elif "战斗机" in planeType or "直升机" in planeType or "轰炸机" in planeType or "女武神无人机" in planeType or "诡骗丽影无人战斗机" in planeType:
-        targetResult[0][5] = PlaneAttack[planeType]["武器射程"]
+        targetResult[0][4] = PlaneAttack[planeType]["武器射程"]
     elif "干扰机" in planeType:
-        targetResult[0][5] = PlaneSupport[planeType]["干扰距离"]
+        targetResult[0][4] = PlaneSupport[planeType]["干扰距离"]
     elif "侦察机" in planeType or "预警机" in planeType:
-        targetResult[0][5] = PlaneSupport[planeType]["探测距离"]
+        targetResult[0][4] = PlaneSupport[planeType]["探测距离"]
     else:
-        targetResult[0][5] = 0
+        targetResult[0][4] = 0
 
     return targetResult

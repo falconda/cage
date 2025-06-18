@@ -58,7 +58,11 @@ class WTA_GA:
         """
         单点交叉：按单位维度（行）切分
         """
-        point = random.randint(1, self.n_units - 1)
+        if self.n_units > 1:
+            point = random.randint(1, self.n_units - 1)
+        else:
+            # 无法做交叉，直接返回父代或报错
+            return parent1.copy()
         child = np.vstack([parent1[:point], parent2[point:]])
         return child
 
