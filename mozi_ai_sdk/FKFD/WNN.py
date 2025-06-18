@@ -227,7 +227,7 @@ class WNN_TA(object):
         Damage_list = []
         Base_list = []
         for singleData in self.DataList:
-            print(singleData[0])
+            # print(singleData[0])
             if "弹道导弹" in singleData[0] or "核弹" in singleData[0]:
                 singleThreat, singleInfo, damage, baseIndex = processSingleDDDDData(singleData)
                 # missileInfo.append(singleInfo)
