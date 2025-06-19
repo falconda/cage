@@ -67,9 +67,11 @@ def run(env):
     S1 = [facility for facility in facilities.values() if 'S1-1' in facility.strName][0]
     S2 = [facility for facility in facilities.values() if 'S1-2' in facility.strName][0]
     S3 = [facility for facility in facilities.values() if 'S1-3' in facility.strName][0]
+    S4 = [facility for facility in facilities.values() if 'S1-4' in facility.strName][0]
     # 基地1的中远程武器平台
     M1 = [facility for facility in facilities.values() if 'M1-1' in facility.strName][0]
     M2 = [facility for facility in facilities.values() if 'M1-2' in facility.strName][0]
+    M3 = [facility for facility in facilities.values() if 'M1-3' in facility.strName][0]
     # 基地1的远程武器平台
     L1 = [facility for facility in facilities.values() if 'L1' in facility.strName][0]
     # 基地2的近程武器平台
@@ -77,9 +79,11 @@ def run(env):
     S11 = [facility for facility in facilities.values() if 'S2-1' in facility.strName][0]
     S22 = [facility for facility in facilities.values() if 'S2-2' in facility.strName][0]
     S33 = [facility for facility in facilities.values() if 'S2-3' in facility.strName][0]
+    S44 = [facility for facility in facilities.values() if 'S2-4' in facility.strName][0]
     # 基地2的中远程武器平台
     M11 = [facility for facility in facilities.values() if 'M2-1' in facility.strName][0]
     M22 = [facility for facility in facilities.values() if 'M2-2' in facility.strName][0]
+    M33 = [facility for facility in facilities.values() if 'M2-3' in facility.strName][0]
     # 基地2的远程武器平台
     L2 = [facility for facility in facilities.values() if 'L2' in facility.strName][0]
     # 基地3的近程武器平台
@@ -87,6 +91,7 @@ def run(env):
     S111 = [facility for facility in facilities.values() if 'S3-1' in facility.strName][0]
     S222 = [facility for facility in facilities.values() if 'S3-2' in facility.strName][0]
     S333 = [facility for facility in facilities.values() if 'S3-3' in facility.strName][0]
+    S444 = [facility for facility in facilities.values() if 'S3-4' in facility.strName][0]
     # 基地3的中远程武器平台
     M111 = [facility for facility in facilities.values() if 'M3-1' in facility.strName][0]
     M222 = [facility for facility in facilities.values() if 'M3-2' in facility.strName][0]
@@ -95,9 +100,9 @@ def run(env):
     S300_1 = [facility for facility in facilities.values() if 'S300-1' in facility.strName][0]
     S300_2 = [facility for facility in facilities.values() if 'S300-2' in facility.strName][0]
     # 挂架；武器编号；射程；目标高度；目标速度；名称；导弹动力系数；基础命中率；挂架上导弹数；初始总数
-    str_obe = {'S1': S1, 'S2': S2, 'S3': S3, 'M1': M1, 'M2': M2, 'L1': L1,
-               'S11': S11, 'S22': S22, 'S33': S33, 'M11': M11, 'M22': M22, 'L2': L2,
-               'S111': S111, 'S222': S222, 'S333': S333, 'M111': M111, 'M222': M222, 'L3': L3,
+    str_obe = {'S1': S1, 'S2': S2, 'S3': S3, 'S4': S4, 'M1': M1, 'M2': M2, 'M3': M3, 'L1': L1,
+               'S11': S11, 'S22': S22, 'S33': S33, 'S44': S44, 'M11': M11, 'M22': M22, 'M33': M33, 'L2': L2,
+               'S111': S111, 'S222': S222, 'S333': S333, 'S444': S444, 'M111': M111, 'M222': M222, 'L3': L3,
                'SL': SL, 'S300_1': S300_1, 'S300_2': S300_2}
     # 机动性系数（a）：F-16DJ 为4.9，代表非常机动；而导弹类如 炸弹, 高超声速导弹为0，代表不可机动；
     target_a = {'干扰机': 1, '预警机': 1, '女武神无人机': 4, '诡骗丽影无人战斗机':4, 'F-16DJ战斗机': 4.9, 'B-1B轰炸机': 1, 'B-52H轰炸机': 1.5, 'RQ-180': 1,
@@ -152,22 +157,22 @@ def run(env):
     S1_weapon_guid, S2_weapon_guid, S3_weapon_guid, M1_weapon_guid = [], [], [], []
     M2_weapon_guid, M3_weapon_guid, L1_weapon_guid, L2_weapon_guid = [], [], [], []
     # 近程范围固有武器
-    S1_original_weapon = ['S1', 'S2', 'S3']
-    S2_original_weapon = ['S11', 'S22', 'S33']
-    S3_original_weapon = ['S111', 'S222', 'S333']
+    S1_original_weapon = ['S1', 'S2', 'S3', 'S4']
+    S2_original_weapon = ['S11', 'S22', 'S33', 'S44']
+    S3_original_weapon = ['S111', 'S222', 'S333', 'S444']
     # 各区域候选武器平台
     S1_prepare = ['S300_1', 'L1', 'M1', 'SL']
     S2_prepare = ['S300_1', 'S300_2', 'M1', 'M111', 'L1', 'L2', 'L3', 'SL']
     S3_prepare = ['S300_2', 'L3', 'M111', 'SL']
-    M1_prepare = ['S300_1', 'L1', 'L2', 'L3', 'M11', 'SL']
+    M1_prepare = ['S300_1', 'L1', 'L2', 'L3', 'M11', 'SL', 'M3']
     M2_prepare = ['M1', 'M111', 'M2', 'M222', 'S300_1', 'S300_2', 'L1', 'L2', 'L3', 'SL']
-    M3_prepare = ['S300_2', 'L1', 'L2', 'L3', 'M22', 'SL']
+    M3_prepare = ['S300_2', 'L1', 'L2', 'L3', 'M22', 'M33', 'SL']
     L1_prepare = ['SL']
     L2_prepare = ['SL']
-    All_weapon = ['L1', 'L2', 'L3', 'M1', 'M2', 'M11', 'M22', 'M111', 'M222', 'S1', 'S2',
-                  'S3', 'S11', 'S22', 'S33', 'S111', 'S222', 'S333', 'S300_1', 'S300_2', 'SL']
-    All_weapon_obe = [L1, L2, L3, M1, M2, M11, M22, M111, M222, S1, S2,
-                      S3, S11, S22, S33, S111, S222, S333, S300_1, S300_2, SL]
+    All_weapon = ['L1', 'L2', 'L3', 'M1', 'M2', 'M3', 'M11', 'M22', 'M33', 'M111', 'M222', 'S1', 'S2',
+                  'S3', 'S4', 'S11', 'S22', 'S33', 'S44', 'S111', 'S222', 'S333', 'S444', 'S300_1', 'S300_2', 'SL']
+    All_weapon_obe = [L1, L2, L3, M1, M2, M3, M11, M22, M33, M111, M222, S1, S2,
+                      S3, S4, S11, S22, S33, S44, S111, S222, S333, S444, S300_1, S300_2, SL]
     All_weapon_guid = [obe.strGuid for obe in All_weapon_obe]
     every_weapon_mounts = {}
     # 得到初始数量，自动杀伤网时可用
@@ -443,8 +448,8 @@ def run(env):
                             data_ac = processWtaData(ac)
                             data.append(data_ac)
                         data_red = transpose(data)
-                        logging.info(f'数据库蓝方：{data_blue}')
-                        logging.info(f'数据库红方：{data_red}')
+                        # logging.info(f'数据库蓝方：{data_blue}')
+                        # logging.info(f'数据库红方：{data_red}')
                         qij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
                         fij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
                         data_log = data_blue + data_red
@@ -460,7 +465,7 @@ def run(env):
                         df = pd.DataFrame([data_log])
 
                         # Excel 文件路径
-                        file_path = '数据库输出文件.xlsx'
+                        file_path = '蓝方数据库输出文件.xlsx'
 
                         if os.path.exists(file_path):
                             # 加载已有 Excel 文件
@@ -481,7 +486,7 @@ def run(env):
                         else:
                             # 文件不存在时新建文件
                             df.to_excel(file_path, index=False, engine='openpyxl')
-
+                        # 蓝方数据库构建结束
 
                     # 依据打击方案，记录分配情况
                     attack_records = []
@@ -649,15 +654,7 @@ def run(env):
         Temp_unused = []
         # 记录打击的目标
         last_target_weapon = []
-        # print("b")
-        # print(f'S1_target:', S1_target)
-        # print(f'S2_target:', S2_target)
-        # print(f'S3_target:', S3_target)
-        # print(f'M1_target:', M1_target)
-        # print(f'M2_target:', M2_target)
-        # print(f'M3_target:', M3_target)
-        # print(f'L1_target:', L1_target)
-        # print(f'L2_target:', L2_target)
+
 
         # 信息融合、威胁评估模块
         S1_target_sum, Threat_S1, qjk_s1, S1_target_v, S1_target_h, S1_target_name, S1_target_a, S1_class_num = None, [], None, None, None, None, None, {}
@@ -804,7 +801,6 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in L1_target]
-            # print(f'L1:L1_target_inf',L1_target_inf)
             Threat_L1, Damage_L1, Base_L1 = WNN_TA(L1_target_inf).run()
             # 生成目标威胁值
             # Threat_L1 = [1 for d in range(1, L1_target_sum + 1)]
@@ -827,7 +823,6 @@ def run(env):
                 [target.strName, target.fCurrentSpeed, target.fCurrentAltitude_ASL, target.dLongitude,
                  target.dLatitude,
                  target.fCurrentHeading] for target in L2_target]
-            # print(f'L2:L2_target_inf', L2_target_inf)
             Threat_L2, Damage_L2, Base_L2 = WNN_TA(L2_target_inf).run()
             # 生成目标威胁值
             # Threat_L2 = [1 for d in range(1, L2_target_sum + 1)]
@@ -940,26 +935,59 @@ def run(env):
                 if M1_target_norm:
                     num_m1 = new_mounts['M1']
                     num_m2 = new_mounts['M2']
-                    # 目标数量过多，后期需要请求调用别处资源
-                    if M1_target_norm >= num_m1 + num_m2:
+                    num_m3 = new_mounts['M3']  # ✅ 加入 M3
+
+                    total_available = num_m1 + num_m2 + num_m3
+
+                    # 情况 1：目标数量 >= 所有资源，总量全部打光
+                    if M1_target_norm >= total_available:
                         M1_new['M1'] = num_m1
                         M1_new['M2'] = num_m2
+                        M1_new['M3'] = num_m3
+
                         new_mounts['M1'] = 0
                         new_mounts['M2'] = 0
-                        M1_target_norm = M1_target_norm - num_m1 - num_m2
-                    # 目标数量小，可剩余资源供后期别处使用
+                        new_mounts['M3'] = 0
+
+                        M1_target_norm -= total_available
+
+                    # 情况 2：目标数量不足，按优先级消耗 M1 → M2 → M3
                     else:
-                        error = num_m1 - M1_target_norm
-                        # 如果M1够用
-                        if error > 0:
-                            M1_new['M1'] = M1_target_norm
-                            new_mounts['M1'] = error
-                        # 如果不够用
-                        else:
-                            M1_new['M1'] = num_m1
-                            new_mounts['M1'] = 0
-                            M1_new['M2'] = -error
-                            new_mounts['M2'] = num_m2 + error
+                        # 给每种武器评分（可根据实际能力调整权重）
+                        score_M1 = num_m1 * 0.3
+                        score_M2 = num_m2 * 0.3
+                        score_M3 = num_m3 * 0.3
+
+                        total_score = score_M1 + score_M2 + score_M3
+
+                        if total_score == 0:
+                            continue  # 没有可用武器，跳过
+
+                        # 计算比例
+                        ratio_M1 = score_M1 / total_score
+                        ratio_M2 = score_M2 / total_score
+                        ratio_M3 = score_M3 / total_score
+
+                        # 分配任务数
+                        assign_M1 = int(M1_target_norm * ratio_M1)
+                        assign_M2 = int(M1_target_norm * ratio_M2)
+                        assign_M3 = M1_target_norm - assign_M1 - assign_M2  # 保底补足总数
+
+                        # 限制不超过库存
+                        assign_M1 = min(assign_M1, num_m1)
+                        assign_M2 = min(assign_M2, num_m2)
+                        assign_M3 = min(assign_M3, num_m3)
+
+                        # 记录分配
+                        M1_new['M1'] = assign_M1
+                        M1_new['M2'] = assign_M2
+                        M1_new['M3'] = assign_M3
+
+                        # 更新库存
+                        new_mounts['M1'] -= assign_M1
+                        new_mounts['M2'] -= assign_M2
+                        new_mounts['M3'] -= assign_M3
+
                         M1_target_norm = 0
             # 本地任务
             M2_new = {}
@@ -980,26 +1008,55 @@ def run(env):
                 if M2_target_norm:
                     num_m1 = new_mounts['M11']
                     num_m2 = new_mounts['M22']
-                    # 目标数量过多，后期需要请求调用别处资源
-                    if M2_target_norm >= num_m1 + num_m2:
+                    num_m3 = new_mounts['M33']  # 新增M33
+
+                    total_available = num_m1 + num_m2 + num_m3
+
+                    if M2_target_norm >= total_available:
                         M2_new['M11'] = num_m1
                         M2_new['M22'] = num_m2
+                        M2_new['M33'] = num_m3
+
                         new_mounts['M11'] = 0
                         new_mounts['M22'] = 0
-                        M2_target_norm = M2_target_norm - num_m1 - num_m2
-                    # 目标数量小，可剩余资源供后期别处使用
+                        new_mounts['M33'] = 0
+
+                        M2_target_norm -= total_available
                     else:
-                        error = num_m1 - M2_target_norm
-                        # 如果M1够用
-                        if error > 0:
-                            M2_new['M11'] = M2_target_norm
-                            new_mounts['M11'] = error
-                        # 如果不够用
-                        else:
-                            M2_new['M11'] = num_m1
-                            new_mounts['M11'] = 0
-                            M2_new['M22'] = -error
-                            new_mounts['M22'] = num_m2 + error
+                        # 给每种武器评分（你可以根据实际情况调整权重）
+                        score_M11 = num_m1 * 0.3
+                        score_M22 = num_m2 * 0.3
+                        score_M33 = num_m3 * 0.3
+
+                        total_score = score_M11 + score_M22 + score_M33
+
+                        if total_score == 0:
+                            continue  # 所有武器都没资源了
+
+                        # 按比例分配目标
+                        ratio_M11 = score_M11 / total_score
+                        ratio_M22 = score_M22 / total_score
+                        ratio_M33 = score_M33 / total_score
+
+                        assign_M11 = int(M2_target_norm * ratio_M11)
+                        assign_M22 = int(M2_target_norm * ratio_M22)
+                        assign_M33 = M2_target_norm - assign_M11 - assign_M22  # 保证总和不超
+
+                        # 不超过库存限制
+                        assign_M11 = min(assign_M11, num_m1)
+                        assign_M22 = min(assign_M22, num_m2)
+                        assign_M33 = min(assign_M33, num_m3)
+
+                        # 分配任务
+                        M2_new['M11'] = assign_M11
+                        M2_new['M22'] = assign_M22
+                        M2_new['M33'] = assign_M33
+
+                        # 更新库存
+                        new_mounts['M11'] -= assign_M11
+                        new_mounts['M22'] -= assign_M22
+                        new_mounts['M33'] -= assign_M33
+
                         M2_target_norm = 0
             # 本地任务
             M3_new = {}
@@ -1027,19 +1084,34 @@ def run(env):
                         new_mounts['M111'] = 0
                         new_mounts['M222'] = 0
                         M3_target_norm = M3_target_norm - num_m1 - num_m2
-                    # 目标数量小，可剩余资源供后期别处使用
                     else:
-                        error = num_m1 - M3_target_norm
-                        # 如果M1够用
-                        if error > 0:
-                            M3_new['M111'] = M3_target_norm
-                            new_mounts['M111'] = error
-                        # 如果不够用
-                        else:
-                            M3_new['M111'] = num_m1
-                            new_mounts['M111'] = 0
-                            M3_new['M222'] = -error
-                            new_mounts['M222'] = num_m2 + error
+                        # 给武器评分（可调整权重）
+                        score_M111 = num_m1 * 0.5
+                        score_M222 = num_m2 * 0.5
+                        total_score = score_M111 + score_M222
+
+                        if total_score == 0:
+                            continue  # 没资源可分配，跳过
+
+                        # 分配比例
+                        ratio_M111 = score_M111 / total_score
+                        ratio_M222 = score_M222 / total_score
+
+                        assign_M111 = int(M3_target_norm * ratio_M111)
+                        assign_M222 = M3_target_norm - assign_M111
+
+                        # 不超过库存
+                        assign_M111 = min(assign_M111, num_m1)
+                        assign_M222 = min(assign_M222, num_m2)
+
+                        # 分配结果
+                        M3_new['M111'] = assign_M111
+                        M3_new['M222'] = assign_M222
+
+                        # 更新库存
+                        new_mounts['M111'] -= assign_M111
+                        new_mounts['M222'] -= assign_M222
+
                         M3_target_norm = 0
             # 本地任务
             L1_new = {}
@@ -1067,19 +1139,36 @@ def run(env):
                         new_mounts['L1'] = 0
                         new_mounts['L2'] = 0
                         L1_target_norm = L1_target_norm - num_m1 - num_m2
-                    # 目标数量小，可剩余资源供后期别处使用
                     else:
-                        error = num_m1 - L1_target_norm
-                        # 如果M1够用
-                        if error > 0:
-                            L1_new['L1'] = L1_target_norm
-                            new_mounts['L1'] = error
-                        # 如果不够用
-                        else:
-                            L1_new['L1'] = num_m1
-                            new_mounts['L1'] = 0
-                            L1_new['L2'] = -error
-                            new_mounts['L2'] = num_m2 + error
+                        # 定义评分（可根据实际武器能力微调）
+                        score_L1 = num_m1 * 0.5
+                        score_L2 = num_m2 * 0.5
+                        total_score = score_L1 + score_L2
+
+                        if total_score == 0:
+                            continue  # 无资源跳过
+
+                        # 计算比例
+                        ratio_L1 = score_L1 / total_score
+                        ratio_L2 = score_L2 / total_score
+
+                        # 按比例分配目标
+                        assign_L1 = int(L1_target_norm * ratio_L1)
+                        assign_L2 = L1_target_norm - assign_L1
+
+                        # 不超过实际库存
+                        assign_L1 = min(assign_L1, num_m1)
+                        assign_L2 = min(assign_L2, num_m2)
+
+                        # 分配任务
+                        L1_new['L1'] = assign_L1
+                        L1_new['L2'] = assign_L2
+
+                        # 更新库存
+                        new_mounts['L1'] -= assign_L1
+                        new_mounts['L2'] -= assign_L2
+
+                        # 任务完成
                         L1_target_norm = 0
             # 本地任务
             L2_new = {}
@@ -1107,20 +1196,36 @@ def run(env):
                         new_mounts['L3'] = 0
                         new_mounts['L2'] = 0
                         L2_target_norm = L2_target_norm - num_m1 - num_m2
-                    # 目标数量小，可剩余资源供后期别处使用
+                    # 目标数量小，可剩余资源供后期别处使用 —— 改为按评分选择武器系统
                     else:
-                        error = num_m1 - L2_target_norm
-                        # 如果M1够用
-                        if error > 0:
-                            L2_new['L3'] = L2_target_norm
-                            new_mounts['L3'] = error
-                        # 如果不够用
-                        else:
-                            L2_new['L3'] = num_m1
-                            new_mounts['L3'] = 0
-                            L2_new['L2'] = -error
-                            new_mounts['L2'] = num_m2 + error
+                        # 为每种武器评分：你可以根据速度、命中概率、弹道性能等自定义
+                        # 示例：我们先简单用剩余数量作为评分基础
+                        score_L3 = num_m1 * 0.5  # 你可以换成自定义函数
+                        score_L2 = num_m2 * 0.5  # 例：略微降低权重
+
+                        total_score = score_L3 + score_L2
+
+                        if total_score == 0:
+                            continue  # 没有资源可分配，跳过
+
+                        ratio_L3 = score_L3 / total_score
+                        ratio_L2 = score_L2 / total_score
+
+                        assign_L3 = int(L2_target_norm * ratio_L3)
+                        assign_L2 = L2_target_norm - assign_L3
+
+                        # 不能超过库存
+                        assign_L3 = min(assign_L3, num_m1)
+                        assign_L2 = min(assign_L2, num_m2)
+
+                        L2_new['L3'] = assign_L3
+                        L2_new['L2'] = assign_L2
+
+                        new_mounts['L3'] -= assign_L3
+                        new_mounts['L2'] -= assign_L2
+
                         L2_target_norm = 0
+
             # 执行支援任务(近程、中程、远程，内部由威胁度决定顺序)
             A_target_norm = [S1_target_norm, S2_target_norm, S3_target_norm, M1_target_norm, M2_target_norm,
                              M3_target_norm,
@@ -1199,7 +1304,7 @@ def run(env):
             update_weapon_L2()
         else:
             S1_new = {}
-            S1_weapon_old = ['S1', 'S2', 'S3', 'S300_1']
+            S1_weapon_old = ['S1', 'S2', 'S3', 'S4', 'S300_1']
             for i in S1_weapon_old:
                 if new_mounts[i] > 0:
                     S1_new[i] = new_mounts[i]
@@ -1207,7 +1312,7 @@ def run(env):
                     weapon_info[i]['num_weapon'] = new_mounts[i]
             update_weapon_S1()
             S2_new = {}
-            S2_weapon_old = ['S11', 'S22', 'S33']
+            S2_weapon_old = ['S11', 'S22', 'S44', 'S33']
             for i in S2_weapon_old:
                 if new_mounts[i] > 0:
                     S2_new[i] = new_mounts[i]
@@ -1215,7 +1320,7 @@ def run(env):
                     weapon_info[i]['num_weapon'] = new_mounts[i]
             update_weapon_S2()
             S3_new = {}
-            S3_weapon_old = ['S111', 'S222', 'S333', 'S300_2']
+            S3_weapon_old = ['S111', 'S222', 'S333', 'S444', 'S300_2']
             for i in S3_weapon_old:
                 if new_mounts[i] > 0:
                     S3_new[i] = new_mounts[i]
@@ -1223,7 +1328,7 @@ def run(env):
                     weapon_info[i]['num_weapon'] = new_mounts[i]
             update_weapon_S3()
             M1_new = {}
-            M1_weapon_old = ['M1', 'M2']
+            M1_weapon_old = ['M1', 'M2', 'M3']
             for i in M1_weapon_old:
                 if new_mounts[i] > 0:
                     M1_new[i] = new_mounts[i]
@@ -1231,7 +1336,7 @@ def run(env):
                     weapon_info[i]['num_weapon'] = new_mounts[i]
             update_weapon_M1()
             M2_new = {}
-            M2_weapon_old = ['M11', 'M22']
+            M2_weapon_old = ['M11', 'M22', 'M33']
             for i in M2_weapon_old:
                 if new_mounts[i] > 0:
                     M2_new[i] = new_mounts[i]
@@ -1277,10 +1382,45 @@ def run(env):
             Pij_S1, Fij_SA1 = probability_of_hit(S1_rocket, S1_max_v, S1_max_l, S1_target_v, dis_S, S1_pof,
                                                  S1_target_a)
             Fij_1 = Fij_S1 * Fij_SA1
+
+            # s_t = []
+            # for target_index, target_inf in enumerate(S1_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(S1_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(S1_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(S1_weapon_sum)
+            # data_final.append(S1_target_sum)
+            # data_final.append(Threat_S1)
+            # data_final.append(Pij_S1)
+            # data_final.append(Fij_1)
+            # data_final.append(qjk_s1)
+
             # 采用对应算法
             model = Al(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a)
             # 输出结果
             S1_best_plan = model.run()
+            # data_final.append(S1_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 对结果进行过滤
             for k, v in enumerate(S1_best_plan):
                 if Fij_1[k][v] == 0:
@@ -1313,10 +1453,44 @@ def run(env):
                                                  S2_target_a)
             Fij_2 = Fij_S2 * Fij_SA2
 
+            # s_t = []
+            # for target_index, target_inf in enumerate(S2_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            #
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(S2_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(S2_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(S2_weapon_sum)
+            # data_final.append(S2_target_sum)
+            # data_final.append(Threat_S2)
+            # data_final.append(Pij_S2)
+            # data_final.append(Fij_2)
+            # data_final.append(qjk_s2)
+
             # 采用对应算法
             model = Al(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a)
             # 输出结果
             S2_best_plan = model.run()
+            # data_final.append(S2_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 对结果进行过滤
             for k, v in enumerate(S2_best_plan):
                 if Fij_2[k][v] == 0:
@@ -1348,10 +1522,44 @@ def run(env):
             Pij_S3, Fij_SA3 = probability_of_hit(S3_rocket, S3_max_v, S3_max_l, S3_target_v, dis_S, S3_pof,
                                                  S3_target_a)
             Fij_3 = Fij_S3 * Fij_SA3
+
+            # s_t = []
+            # for target_index, target_inf in enumerate(S3_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            #
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(S3_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(S3_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(S3_weapon_sum)
+            # data_final.append(S3_target_sum)
+            # data_final.append(Threat_S3)
+            # data_final.append(Pij_S3)
+            # data_final.append(Fij_3)
+            # data_final.append(qjk_s3)
             # 采用对应算法
             model = Al(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a)
             # 输出结果
             S3_best_plan = model.run()
+            # data_final.append(S3_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 对结果进行过滤
             for k, v in enumerate(S3_best_plan):
                 if Fij_3[k][v] == 0:
@@ -1383,10 +1591,43 @@ def run(env):
             Pij_M1, Fij_MA1 = probability_of_hit(M1_rocket, M1_max_v, M1_max_l, M1_target_v, dis_M, M1_pof,
                                                  M1_target_a)
             Fij_4 = Fij_M1 * Fij_MA1
+            # s_t = []
+            # for target_index, target_inf in enumerate(M1_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            # data = []
+            # data_final = []
+            # # [ 武器数，目标数， 名称， 目标类型， [经度，纬度]， 方位角，打击范围， 威胁值， pij， fij， qjk, 打击结果]
+            # for target_index, target in enumerate(M1_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(M1_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(M1_weapon_sum)
+            # data_final.append(M1_target_sum)
+            # data_final.append(Threat_M1)
+            # data_final.append(Pij_M1)
+            # data_final.append(Fij_4)
+            # data_final.append(qjk_m1)
+
             # 采用对应算法
             model = Al(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a)
             # 输出结果
             M1_best_plan = model.run()
+            # data_final.append(M1_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 结果过滤
             for k, v in enumerate(M1_best_plan):
                 if Fij_4[k][v] == 0:
@@ -1418,10 +1659,44 @@ def run(env):
             Pij_M2, Fij_MA2 = probability_of_hit(M2_rocket, M2_max_v, M2_max_l, M2_target_v, dis_M, M2_pof,
                                                  M2_target_a)
             Fij_5 = Fij_M2 * Fij_MA2
+            # s_t = []
+            # for target_index, target_inf in enumerate(M2_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            #
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(M2_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(M2_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(M2_weapon_sum)
+            # data_final.append(M2_target_sum)
+            # data_final.append(Threat_M2)
+            # data_final.append(Pij_M2)
+            # data_final.append(Fij_5)
+            # data_final.append(qjk_m2)
+
             # 采用对应算法
             model = Al(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a)
             # 输出结果
             M2_best_plan = model.run()
+            # data_final.append(M2_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 结果过滤
             for k, v in enumerate(M2_best_plan):
                 if Fij_5[k][v] == 0:
@@ -1453,10 +1728,42 @@ def run(env):
             Pij_M3, Fij_MA3 = probability_of_hit(M3_rocket, M3_max_v, M3_max_l, M3_target_v, dis_M, M3_pof,
                                                  M3_target_a)
             Fij_6 = Fij_M3 * Fij_MA3
+            # s_t = []
+            # for target_index, target_inf in enumerate(M3_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(M3_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(M3_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(M3_weapon_sum)
+            # data_final.append(M3_target_sum)
+            # data_final.append(Threat_M3)
+            # data_final.append(Pij_M3)
+            # data_final.append(Fij_6)
+            # data_final.append(qjk_m3)
             # 采用对应算法
             model = Al(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a)
             # 输出结果
             M3_best_plan = model.run()
+            # data_final.append(M3_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 结果过滤
             for k, v in enumerate(M3_best_plan):
                 if Fij_6[k][v] == 0:
@@ -1489,10 +1796,42 @@ def run(env):
                                                  L1_target_a)
             # 总可行性矩阵
             Fij_7 = Fij_L1 * Fij_LA1
+            # s_t = []
+            # for target_index, target_inf in enumerate(L1_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            # # [ 名称， 目标类型， 经度， 纬度， 方位角，打击范围， 威胁值]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(L1_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(L1_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(L1_weapon_sum)
+            # data_final.append(L1_target_sum)
+            # data_final.append(Threat_L1)
+            # data_final.append(Pij_L1)
+            # data_final.append(Fij_7)
+            # data_final.append(qjk_l1)
             # 采用对应算法
             model = Al(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a)
             # 输出结果
             L1_best_plan = model.run()
+            # data_final.append(L1_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
             # 结果过滤
             for k, v in enumerate(L1_best_plan):
                 if Fij_7[k][v] == 0:
@@ -1524,10 +1863,46 @@ def run(env):
                                                  L2_target_a)
             # 总可行性矩阵
             Fij_8 = Fij_L2 * Fij_LA2
+
+            # s_t = []
+            # for target_index, target_inf in enumerate(L2_target_inf):
+            #     if "轰炸机" in target_inf[0]:
+            #         s_t.append(target_index)
+            #
+            # # [ 武器数，目标数， 名称， 目标类型， [经度，纬度]， 方位角，打击范围， 威胁值， ]
+            # data = []
+            # data_final = []
+            # for target_index, target in enumerate(L2_target):
+            #     data_target = dataProcess.processWtaData(target)
+            #     data.append(data_target)
+            # data_blue = transpose(data)
+            # data_red = extract_targets_attributes(L2_weapon_obe)
+            # data_final = data_blue + data_red
+            # data_final.append(L2_weapon_sum)
+            # data_final.append(L2_target_sum)
+            # data_final.append(Threat_L2)
+            # data_final.append(Pij_L2)
+            # data_final.append(Fij_8)
+            # data_final.append(qjk_l2)
+
             # 采用对应算法
             model = Al(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a)
             # 输出结果
             L2_best_plan = model.run()
+            # data_final.append(L2_best_plan)
+            # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+            # df = pd.DataFrame([data_final])
+            #
+            # # Excel 文件路径
+            # file_path = '数据库.xlsx'
+            #
+            # if os.path.exists(file_path):
+            #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            #         start_row = writer.sheets['Sheet1'].max_row
+            #         df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # else:
+            #     df.to_excel(file_path, index=False, engine='openpyxl')
+
             # 结果过滤
             for k, v in enumerate(L2_best_plan):
                 if Fij_8[k][v] == 0:
