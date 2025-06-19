@@ -461,7 +461,6 @@ def run(env):
                         data_log.append(fij)
                         data_log.append(plan.tolist())
 
-
                         # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
                         df = pd.DataFrame([data_log])
 

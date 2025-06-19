@@ -781,5 +781,4 @@ def processWtaData(target):
     else:
         targetResult[0][5] = 0
 
-
     return targetResult
