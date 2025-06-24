@@ -199,18 +199,19 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
         for batch_idx, batch in enumerate(train_loader):
 
-            static, x0, static1, Pij, Threat, Qjk, V_a, execu_time, weapon_cool = batch
+            static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target = batch
 
             static = static.to(device)
             static1 = static1.to(device)
+            static2 = static2.to(device)
             x0 = x0.to(device) if len(x0) > 0 else None
 
             # Full forward pass through the dataset
-            tour_indices, tour_logp = actor(static, static1, x0)
+            tour_indices, tour_logp = actor(num_weapon, num_target, static, static1, static2, x0)
             tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
             # Sum the log probabilities for each city in the tour
             # reward = reward_fn(static, tour_indices)
-            reward = reward_fn(Pij, Threat, Qjk, V_a, tour_indices, execu_time, weapon_cool)
+            reward = reward_fn(Pij, Threat, Qjk, V_a, tour_indices)
 
             # Query the critic for an estimate of the reward
             critic_est = critic(static, static1).view(-1)
@@ -299,16 +300,16 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
 
 def train_tsp(args):
-    STATIC_SIZE = 4  # (x, y)
-    STATIC1_SIZE = 4
-    train_data = ProWTADataset(args.num_weapon, args.num_target, args.train_size, args.seed)
-    valid_data = ProWTADataset(args.num_weapon, args.num_target, args.valid_size, args.seed + 1)
+    STATIC_SIZE = 7  # (x, y)
+    STATIC1_SIZE = 6
+    STATIC2_SIZE = 7
+    train_data = ProWTADataset(args.train_size)
+    valid_data = ProWTADataset(args.valid_size)
     update_fn = None
     actor = DRL4TSP(STATIC_SIZE,
                     STATIC1_SIZE,
+                    STATIC2_SIZE,
                     args.hidden_size,
-                    args.num_weapon,
-                    args.num_target,
                     update_fn,
                     wta.wta_update_mask,
                     args.num_layers,
@@ -355,10 +356,10 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', dest='hidden_size', default=256, type=int)
     parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--layers', dest='num_layers', default=1, type=int)
-    parser.add_argument('--train-size', default=200, type=int)
-    parser.add_argument('--valid-size', default=100, type=int)
-    parser.add_argument('--num_weapon', default=5, type=int)
-    parser.add_argument('--num_target', default=5, type=int)
+    parser.add_argument('--train-size', default=1, type=int)
+    parser.add_argument('--valid-size', default=1, type=int)
+    parser.add_argument('--num_weapon', default=20, type=int)
+    parser.add_argument('--num_target', default=20, type=int)
     parser.add_argument('--nodes', dest='num_nodes', default=20 * 20, type=int)
 
     args = parser.parse_args()

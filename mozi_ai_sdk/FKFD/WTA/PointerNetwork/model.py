@@ -127,7 +127,7 @@ class DRL4TSP(nn.Module):
         Defines the dropout rate for the decoder
     """
 
-    def __init__(self, static_size, static1_size, hidden_size, num_weapon, num_target,
+    def __init__(self, static_size, static1_size, static2_size, hidden_size,
                  update_fn=None, mask_fn=None, num_layers=1, dropout=0.1):
         super(DRL4TSP, self).__init__()
 
@@ -135,11 +135,10 @@ class DRL4TSP(nn.Module):
         self.static1_size = static1_size
         self.update_fn = update_fn
         self.mask_fn = mask_fn
-        self.num_target = num_target
-        self.num_weapon = num_weapon
         # Define the encoder & decoder models
         self.static_encoder = Encoder(static_size, hidden_size)
         self.static1_encoder = Encoder(static1_size, hidden_size)
+        self.static2_encoder = Encoder(static2_size, hidden_size)
         self.decoder = Encoder(static_size, hidden_size)
         self.decoder1 = Encoder(static1_size, hidden_size)
         self.pointer = Pointer(hidden_size, num_layers, dropout)
@@ -151,7 +150,7 @@ class DRL4TSP(nn.Module):
         # Used as a proxy initial state in the decoder when not specified
         self.x0 = torch.zeros((1, static_size, 1), requires_grad=True, device=device)
         self.x1 = torch.zeros((1, static1_size, 1), requires_grad=True, device=device)
-    def forward(self, static, static1, decoder_input=None, last_hh=None):
+    def forward(self, num_weapon, num_target, static, static1, static2, decoder_input=None, last_hh=None):
         """
         Parameters
         ----------
@@ -165,9 +164,12 @@ class DRL4TSP(nn.Module):
         last_hh: Array of size (batch_size, num_hidden)
             Defines the last hidden state for the RNN
         """
+        self.num_target = num_target
+        self.num_weapon = num_weapon
 
         batch_size, input_size, sequence_size = static.size()
         _, input_size1, _ = static1.size()
+        _, input_size2, _ = static2.size()
         decoder1_input = None
         if decoder_input is None:
             decoder_input = self.x0.expand(batch_size, self.static_size, 1)
@@ -182,7 +184,7 @@ class DRL4TSP(nn.Module):
         # Static elements only need to be processed once, and can be used across
         # all 'pointing' iterations. When / if the dynamic elements change,
         # their representations will need to get calculated again.
-        static_hidden = self.static_encoder(static) + self.static1_encoder(static1)
+        static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
 
         for i in range(max_steps):
             if not mask.byte().any():
