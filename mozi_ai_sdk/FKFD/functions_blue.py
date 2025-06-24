@@ -482,6 +482,86 @@ def evaluate_targets(targets_info, facilities_in_info):
 
     return threat_array
 
+def extract_targets_attributes(facilities_in):
+    '''
+        提取打击平台的属性信息：
+        - 名称
+        - 经纬度
+        - 型号
+        - 分类（武器平台/基地/雷达）
+        - 最大射程
+        - 弹药类型 + 映射值
+        - 武器部能力
+    :param targets_in: 红方设施类的集合list，contact类
+    :param facilities: 红方设施类的集合list，facility类
+    :return: 数据库的红方部分的信息
+    '''
+
+
+    type_category_map = {
+        'HQ-17': 0,
+        'HQ-16B': 0,
+        'HQ-9A': 0,
+        'S-400E': 0,
+        '基地': 1,
+        '雷达': 2
+        # ……其他型号可以继续添加
+    }
+
+    ammo_type_map = {
+        '普通榴弹': 0,
+        '穿甲弹': 1,
+        '制导弹': 2,
+        '末敏弹': 3,
+        '集束弹': 4,
+        '战术导弹': 5,
+        '未知': -1
+    }
+
+    names = []
+    type_categories = []
+    positions = []
+    damage_state=[]
+    strike_ranges = []
+    ammo_types = []
+    ammo_type_ids = []
+    weapon_capabilities = []
+
+    for target in facilities_in:
+        name = target.strName
+        lat = target.dLatitude
+        lon = target.dLongitude
+
+        damage = float(target.strDamageState)/100
+
+
+        type_name = extract_type_from_name(name)
+        type_category = type_category_map.get(type_name, -1)  # 若找不到则默认未知
+
+        # 默认值
+        R_max = 0
+        ammo_type = '未知'
+        ammo_type_id = -1
+        K_max = 0
+
+        if type_name in target_input_dict:
+            data = target_input_dict[type_name]
+            R_max = data.get('R', 0)
+            ammo_type = data.get('ammo_type', '未知')
+            ammo_type_id = ammo_type_map.get(ammo_type, -1)
+            K_max = data.get('K', 0)
+
+        # 加入输出列表
+        names.append(name)
+        positions.append([lat, lon])
+        type_categories.append(type_category)
+        damage_state.append(damage)
+        strike_ranges.append(R_max)
+        ammo_type_ids.append(ammo_type_id)
+        weapon_capabilities.append(K_max)
+
+    return [names, type_categories, positions, damage_state, strike_ranges, ammo_type_ids, weapon_capabilities]
+
 def extract_target_encoded_attributes(facilities_in):
     """
     提取每个目标的属性，分别存入不同的列表变量中。
