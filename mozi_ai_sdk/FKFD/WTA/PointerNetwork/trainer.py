@@ -180,7 +180,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     actor_optim = optim.Adam(actor.parameters(), lr=actor_lr)
     critic_optim = optim.Adam(critic.parameters(), lr=critic_lr)
 
-    train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
+
     valid_loader = DataLoader(valid_data, batch_size, False, num_workers=0)
 
     best_params = None
@@ -197,58 +197,42 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         epoch_start = time.time()
         start = epoch_start
 
-        for batch_idx, batch in enumerate(train_loader):
+        for step in range(200):
+            train_data = ProWTADataset(args.train_size)
+            train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
+            for batch_index, batch in enumerate(train_loader):
+                static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target, human_plan = batch
 
-            static, x0, static1, Pij, Threat, Qjk, V_a, execu_time, weapon_cool = batch
+                static = static.to(device)
+                static1 = static1.to(device)
+                static2 = static2.to(device)
+                x0 = x0.to(device) if len(x0) > 0 else None
 
-            static = static.to(device)
-            static1 = static1.to(device)
-            x0 = x0.to(device) if len(x0) > 0 else None
+                # Full forward pass through the dataset
+                tour_indices, tour_logp = actor(num_weapon, num_target, static, static1, static2, x0)
+                tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
+                # Sum the log probabilities for each city in the tour
+                reward = wta.cosine_similarity_percentage(human_plan, tour_indices)
+                print(f'相似度=',reward)
 
-            # Full forward pass through the dataset
-            tour_indices, tour_logp = actor(static, static1, x0)
-            tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
-            # Sum the log probabilities for each city in the tour
-            # reward = reward_fn(static, tour_indices)
-            reward = reward_fn(Pij, Threat, Qjk, V_a, tour_indices, execu_time, weapon_cool)
+                actor_loss_1 = wta.distance(human_plan, tour_indices)
+                actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
+                actor_loss = actor_loss_1 + 0.01 * actor_loss_2
 
-            # Query the critic for an estimate of the reward
-            critic_est = critic(static, static1).view(-1)
+                # 梯度清零、反向传播、优化器更新
+                actor_optim.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+                actor_optim.step()
 
-            advantage = (reward - critic_est)
-            actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
-            critic_loss = torch.mean(advantage ** 2)
-            # 梯度清零、反向传播、优化器更新
-            actor_optim.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-            actor_optim.step()
+                rewards.append(torch.mean(reward.detach()).item())
+                rewards1.append(torch.mean(reward.detach()).item())
+                losses.append(torch.mean(actor_loss.detach()).item())
 
-            critic_optim.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
-            critic_optim.step()
-
-            critic_rewards.append(torch.mean(critic_est.detach()).item())
-            rewards.append(torch.mean(reward.detach()).item())
-            rewards1.append(torch.mean(reward.detach()).item())
-            losses.append(torch.mean(actor_loss.detach()).item())
-
-            if (batch_idx + 1) % 100 == 0:
-                end = time.time()
-                times.append(end - start)
-                start = end
-
-                mean_loss = np.mean(losses[-100:])
-                mean_reward = np.mean(rewards[-100:])
-
-                print('  Batch %d/%d, reward: %2.3f, loss: %2.4f, took: %2.4fs' %
-                      (batch_idx, len(train_loader), mean_reward, mean_loss,
-                       times[-1]))
 
         mean_loss = np.mean(losses)
         # mean_reward = np.mean(rewards)
-        mean_reward = np.mean(1 / np.array(rewards))
+        mean_reward = np.mean(np.array(rewards))
 
         # Save the weights
         epoch_dir = os.path.join(checkpoint_dir, '%s' % epoch)
@@ -262,24 +246,23 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         torch.save(critic.state_dict(), save_path)
 
         # Save rendering of validation set tours
-        valid_dir = os.path.join(save_dir, '%s' % epoch)
+        # valid_dir = os.path.join(save_dir, '%s' % epoch)
 
-        mean_valid = validate_1(valid_loader, actor, reward_fn, num_weapon, num_target, render_fn,
-                              valid_dir, num_plot=5)
+        # mean_valid = validate_1(valid_loader, actor, reward_fn, num_weapon, num_target, render_fn,valid_dir, num_plot=5)
 
         # Save best model parameters
-        if mean_valid < best_reward:
-            best_reward = mean_valid
+        # if mean_valid < best_reward:
+        #     best_reward = mean_valid
+        #
+        #     save_path = os.path.join(save_dir, 'actor.pt')
+        #     torch.save(actor.state_dict(), save_path)
+        #
+        #     save_path = os.path.join(save_dir, 'critic.pt')
+        #     torch.save(critic.state_dict(), save_path)
 
-            save_path = os.path.join(save_dir, 'actor.pt')
-            torch.save(actor.state_dict(), save_path)
-
-            save_path = os.path.join(save_dir, 'critic.pt')
-            torch.save(critic.state_dict(), save_path)
-
-        print('Mean epoch loss/reward: %2.4f, %2.4f, %2.4f, took: %2.4fs ' \
+        print('Mean epoch loss/reward: %2.4f, %2.4f, took: %2.4fs ' \
               '(%2.4fs / 100 batches)\n' % \
-              (mean_loss, mean_reward, mean_valid, time.time() - epoch_start,
+              (mean_loss, mean_reward, time.time() - epoch_start,
                np.mean(times)))
     x = list(range(1, len(rewards) + 1))
 
@@ -299,16 +282,16 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
 
 def train_tsp(args):
-    STATIC_SIZE = 4  # (x, y)
-    STATIC1_SIZE = 4
-    train_data = ProWTADataset(args.num_weapon, args.num_target, args.train_size, args.seed)
-    valid_data = ProWTADataset(args.num_weapon, args.num_target, args.valid_size, args.seed + 1)
+    STATIC_SIZE = 7  # (x, y)
+    STATIC1_SIZE = 6
+    STATIC2_SIZE = 7
+    train_data = ProWTADataset(args.train_size)
+    valid_data = ProWTADataset(args.valid_size)
     update_fn = None
     actor = DRL4TSP(STATIC_SIZE,
                     STATIC1_SIZE,
+                    STATIC2_SIZE,
                     args.hidden_size,
-                    args.num_weapon,
-                    args.num_target,
                     update_fn,
                     wta.wta_update_mask,
                     args.num_layers,
@@ -355,10 +338,10 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', dest='hidden_size', default=256, type=int)
     parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--layers', dest='num_layers', default=1, type=int)
-    parser.add_argument('--train-size', default=200, type=int)
-    parser.add_argument('--valid-size', default=100, type=int)
-    parser.add_argument('--num_weapon', default=5, type=int)
-    parser.add_argument('--num_target', default=5, type=int)
+    parser.add_argument('--train-size', default=1, type=int)
+    parser.add_argument('--valid-size', default=1, type=int)
+    parser.add_argument('--num_weapon', default=20, type=int)
+    parser.add_argument('--num_target', default=20, type=int)
     parser.add_argument('--nodes', dest='num_nodes', default=20 * 20, type=int)
 
     args = parser.parse_args()
