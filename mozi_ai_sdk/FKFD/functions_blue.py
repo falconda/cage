@@ -561,3 +561,121 @@ def extract_targets_attributes(facilities_in):
         weapon_capabilities.append(K_max)
 
     return [names, type_categories, positions, damage_state, strike_ranges, ammo_type_ids, weapon_capabilities]
+
+def extract_target_encoded_attributes(facilities_in):
+    """
+    提取每个目标的属性，分别存入不同的列表变量中。
+    返回所有这些列表，顺序与字段名保持一致。
+    """
+
+    # 字符映射字典
+    type_map = {
+        '指挥保障类': 1,
+        '防空火力类': 2,
+        '火力支援类': 3,
+        '地面突击类': 4,
+        '工程障碍类': 5,
+    }
+
+    ammo_type_score = {
+        '普通榴弹': 1,
+        '穿甲弹': 2,
+        '制导弹': 3,
+        '末敏弹': 4,
+        '集束弹': 5,
+        '战术导弹': 6,
+        '无': 0
+    }
+
+    armor_type_score = {
+        '装甲车/坦克类': 1,
+        '混凝土工事类': 2,
+        '牵引火炮类': 3,
+        '自行火炮类': 4,
+        '防空导弹/雷达': 5,
+        '防空导弹、雷达': 6,
+    }
+
+    mission_score = {
+        '指挥': 1,
+        '主攻': 2,
+        '助攻': 3,
+        '支援': 4,
+        '穿插': 5,
+        '掩护': 6,
+        '防御': 7,
+    }
+
+    weather_score = {
+        '很好': 1,
+        '好': 2,
+        '较好': 3,
+        '一般': 4,
+        '较差': 5,
+        '差': 6,
+        '很差': 7
+    }
+
+    # 模糊值计算函数
+    def fuzzy_val(desc, certainty):
+        if desc in fuzzy_eval_table and certainty in certainty_table:
+            t, f = fuzzy_eval_table[desc]
+            c_l, c_u = certainty_table[certainty]
+            return fuzzy_to_real(t, f, c_l, c_u)
+        return 0.5
+
+    # 每类属性一个列表
+    type_names = []
+    lats = []
+    lons = []
+    Rs = []
+    Ss = []
+    Ks = []
+    names = []
+    type_codes = []
+    ammo_type_codes = []
+    armor_type_codes = []
+    mission_codes = []
+    is_visible_codes = []
+    weather_codes = []
+    damages = []
+    importance_scores = []
+    urgency_scores = []
+
+    # 遍历设施，提取属性
+    for target in facilities_in:
+        name = target.strName
+        lat = target.dLatitude
+        lon = target.dLongitude
+        type_name = extract_type_from_name(name)
+        base_attr = target_input_dict.get(type_name, {})
+
+        # 添加各属性值
+        names.append(name)
+        # type_names.append(type_name)
+        lats.append(lat)
+        lons.append(lon)
+        Rs.append(base_attr.get('R', 0.0))
+        Ss.append(base_attr.get('S', 0.0))
+        Ks.append(base_attr.get('K', 0.0))
+
+        type_codes.append(type_map.get(base_attr.get('type', ''), -1))
+        ammo_type_codes.append(ammo_type_score.get(base_attr.get('ammo_type', ''), -1))
+        armor_type_codes.append(armor_type_score.get(base_attr.get('armor_type', ''), -1))
+        mission_codes.append(mission_score.get(base_attr.get('mission', ''), -1))
+        is_visible_codes.append(1 if base_attr.get('is_visible', True) else -1)
+        weather_codes.append(weather_score.get(base_attr.get('weather', ''), -1))
+
+        # 毁伤
+        try:
+            damages.append(float(target.strDamageState) / 100)
+        except Exception:
+            damages.append(0.0)
+
+        importance_scores.append(fuzzy_val(base_attr.get('importance_desc', ''), base_attr.get('importance_certainty', '')))
+        urgency_scores.append(fuzzy_val(base_attr.get('urgency_desc', ''), base_attr.get('urgency_certainty', '')))
+
+    return [names, lats, lons, Rs, Ss, Ks,
+        type_codes, ammo_type_codes, armor_type_codes,
+        mission_codes, is_visible_codes, weather_codes,
+        damages, importance_scores, urgency_scores]

@@ -19,7 +19,7 @@ from mozi_ai_sdk.FKFD.WTA.TS_WTA import TS_WTA
 from mozi_ai_sdk.FKFD.env.env import Environment
 from mozi_ai_sdk.FKFD.env import etc
 from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num, transpose
-from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets, extract_targets_attributes
+from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets, extract_target_encoded_attributes
 from mozi_ai_sdk.FKFD.dataProcess import processWtaData
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
 
@@ -440,7 +440,7 @@ def run(env):
                     # 数据库构建
                     # 蓝方对红方的
                     if step_count != 1:
-                        data_blue = extract_targets_attributes(facilities_in)
+                        data_blue = extract_target_encoded_attributes(facilities_in)
                         # 蓝方的
                         data = []
                         for acs in acs_assign_weapon:
@@ -462,10 +462,15 @@ def run(env):
                         data_log.append(plan.tolist())
 
                         # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
-                        df = pd.DataFrame([data_log])
+                        custom_headers = ['设施类型名称', '纬度', '经度', '作战范围','射击频率','武器部能力',
+                                          '设施类型', '武器类型', '装甲类型', '任务类型', '可视类型', '气象条件类型',
+                                          '损伤情况', '重要性', '急迫性',
+                                          '空中单位名称', '目标类型', '经纬度', '速度', '方位角', '作战范围',
+                                          '武器数量', '目标数量', '威胁值', '打击概率', '损伤概率', '可行性', '分配方案']  # 自定义表头
+                        df = pd.DataFrame([data_log], columns=custom_headers)
 
                         # Excel 文件路径
-                        file_path = '蓝方数据库输出文件.xlsx'
+                        file_path = '蓝方数据库输出v2.xlsx'
 
                         if os.path.exists(file_path):
                             # 加载已有 Excel 文件
