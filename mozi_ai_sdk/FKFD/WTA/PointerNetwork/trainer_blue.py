@@ -209,6 +209,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 # Sum the log probabilities for each city in the tour
                 # reward = reward_fn(static, tour_indices)
                 reward = wta.cosine_similarity_percentage(human_plan, tour_indices)
+                print(f'reward=', reward)
 
                 actor_loss_1 = wta.distance(human_plan, tour_indices)
                 actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
@@ -225,9 +226,10 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 losses.append(torch.mean(actor_loss.detach()).item())
 
         mean_loss = np.mean(losses)
+        print(f'mean_loss=', mean_loss)
         # mean_reward = np.mean(rewards)
         mean_reward = np.mean(rewards)
-        print(f'mean_reward=', mean_reward)
+        # print(f'mean_reward=', mean_reward)
 
         # Save the weights
         epoch_dir = os.path.join(checkpoint_dir, '%s' % epoch)

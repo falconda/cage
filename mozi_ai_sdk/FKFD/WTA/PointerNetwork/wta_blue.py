@@ -30,7 +30,7 @@ def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
     for i in range(chosen_idx.size()[0]):
         target_array.append(list(range(target_index[i], end_c[i], num_target)))
     target_mask = torch.tensor(target_array).to(device)
-    mask.scatter_(1, weapon_mask, 0)
+    # mask.scatter_(1, weapon_mask, 0)
     mask.scatter_(1, target_mask, 0)
     return mask
 
@@ -83,8 +83,8 @@ class ProWTADataset(Dataset):
             self.vt = parse_tensor_from_string(row['红方威胁度'])
             self.pij = parse_tensor_from_string(row['打击概率pij'])
             self.fij = parse_tensor_from_string(row['可行性矩阵'])
+            self.plan = process_plan(parse_tensor_from_string(row['打击方案']))
             self.qjk = parse_tensor_from_string(row['损伤概率qjk'])
-            self.plan = parse_tensor_from_string(row['打击方案'])
 
             # print(self.red_coordinates.shape)  # 应该是 torch.Size([32, 2])
             # print(self.red_coordinates[0])  # 看某一行是否真的含有 \n
@@ -245,6 +245,34 @@ def trans_norm(tensor_input, num_base, base_value):
             random_norm_base[i][j] = base_value[index]
     return random_norm, random_norm_base
 
+
+def process_plan(plan):
+    # 将每行的非零元素设置为 1，并记录该位置（索引）在新的一维张量中
+    rows, cols = plan.size()
+
+    # 用来存储结果的一维张量
+    non_zero_indices = []
+
+    for i in range(rows):
+        # 获取当前行
+        row = plan[i]
+
+        # 将非零元素设置为 1
+        row[row != 0] = 1
+
+        # 将当前行的非零元素所在的列索引添加到 non_zero_indices 中
+        non_zero_index = torch.nonzero(row).squeeze().tolist()  # 获取不为0的元素的列索引
+
+        # 如果这一行是空的（即没有非零元素），将其索引设置为 -1
+        if not non_zero_index:
+            non_zero_indices.append(-1)  # 如果该行全是零，添加 -1
+        else:
+            non_zero_indices.append(non_zero_index)  # 只取每行中第一个非零元素的列索引
+
+    # 将 non_zero_indices 转化为一维张量
+    non_zero_indices_tensor = torch.tensor(non_zero_indices)
+
+    return non_zero_indices_tensor
 
 def compute_reward(Pij, Threat, Qjk, V_a, plan, excu_time, weapon_cool):
     Qjk_start = 1 * Qjk
