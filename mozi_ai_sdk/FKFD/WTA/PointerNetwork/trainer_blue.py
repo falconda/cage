@@ -210,8 +210,6 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 # reward = reward_fn(static, tour_indices)
                 reward = wta.cosine_similarity_percentage(human_plan, tour_indices)
 
-                print(f'相似度=', reward)
-
                 actor_loss_1 = wta.distance(human_plan, tour_indices)
                 actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
                 actor_loss = actor_loss_1 + 0.01 * actor_loss_2
@@ -228,7 +226,8 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
         mean_loss = np.mean(losses)
         # mean_reward = np.mean(rewards)
-        mean_reward = np.mean(1 / np.array(rewards))
+        mean_reward = np.mean(rewards)
+        print(f'mean_reward=', mean_reward)
 
         # Save the weights
         epoch_dir = os.path.join(checkpoint_dir, '%s' % epoch)
@@ -257,10 +256,10 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         #     save_path = os.path.join(save_dir, 'critic.pt')
         #     torch.save(critic.state_dict(), save_path)
 
-        print('Mean epoch loss/reward: %2.4f, %2.4f, took: %2.4fs ' \
-              '(%2.4fs / 100 batches)\n' % \
-              (mean_loss, mean_reward, time.time() - epoch_start,
-               np.mean(times)))
+        # print('Mean epoch loss/reward: %2.4f, %2.4f, took: %2.4fs ' \
+        #       '(%2.4fs / 100 batches)\n' % \
+        #       (mean_loss, mean_reward, time.time() - epoch_start,
+        #        np.mean(times)))
     x = list(range(1, len(rewards) + 1))
 
     # 绘制折线图

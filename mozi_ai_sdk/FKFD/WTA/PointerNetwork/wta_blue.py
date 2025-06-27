@@ -383,6 +383,7 @@ def cosine_similarity_percentage(human_plan, agent_plan):
 
     # 将相似度归一化为百分比（0到100之间）
     similarity_percentage = (cosine_sim + 1) / 2 * 100  # 余弦相似度[-1, 1] -> [0, 100]
+    if len(human_plan) == 1 and human_plan[0] == 0 and len(agent_plan) == 1 and agent_plan[0] == 0:
+        similarity_percentage = torch.tensor(1.0).to(device)
 
     return similarity_percentage
-
