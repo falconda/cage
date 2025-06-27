@@ -55,6 +55,7 @@ class ProWTADataset(Dataset):
             self.target_azimuth = (torch.tensor(ast.literal_eval(row['目标方位角'])))
             self.target_range = (torch.tensor(ast.literal_eval(row['作战范围'])))
             # 提取红方的数据
+            # 12312
             self.weapon_type = (torch.tensor(ast.literal_eval(row['红方武器类型'])))
             self.weapon_coordinates = (torch.tensor(ast.literal_eval(row['红方武器经纬度'])))
             self.weapon_damage = (torch.tensor(ast.literal_eval(row['武器毁伤程度'])))
