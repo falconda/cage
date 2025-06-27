@@ -13,6 +13,7 @@ matplotlib.use('Agg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 file_path = '蓝方数据库.xlsx'  # 使用相对路径
 data = pd.read_excel(file_path)
+line = 0
 
 
 def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
@@ -59,12 +60,13 @@ class ProWTADataset(Dataset):
         super(ProWTADataset, self).__init__()
 
         seed = np.random.randint(123456789)
+        global line
         np.random.seed(seed)
         torch.manual_seed(seed)
         self.num_samples = num_samples
         # 按行遍历前num_samples行
-        for index, row in data.iloc[0:num_samples].iterrows():
-
+        for index, row in data.iloc[line:num_samples+line].iterrows():
+            line += 1
             self.blue_type = parse_tensor_from_string(row['蓝方类型'])
             self.blue_coordinates = parse_tensor_from_string(row['蓝方经纬度'])
             self.blue_speed = parse_tensor_from_string(row['蓝方速度'])
@@ -194,7 +196,7 @@ class ProWTADataset(Dataset):
         # 直接通过索引返回数据
         return (self.dataset1[idx], [], self.dataset2[idx], self.dataset3[idx],
                 torch.tensor(self.num_weapon).to(device), torch.tensor(self.num_target).to(device),
-                self.Threat, self.Pij,  self.Qjk)
+                self.Threat, self.Pij,  self.Qjk, self.plan)
 
 
 
@@ -347,45 +349,40 @@ def trans_to_plan(index, num_weapon, num_target):
     return index_sort
 
 
-# def test_pro_wta_dataset(num_samples=1):
-#     # 创建 ProWTADataset 实例
-#     dataset = ProWTADataset(num_samples=num_samples)
-#
-#     # 打印数据集的大小
-#     print(f"数据集大小: {len(dataset)}")
-#
-#     # 检查数据集中的某一项数据
-#     print("\n测试数据集中的第一项数据:")
-#     first_data = dataset[0]
-#     print(f"第一项数据的结构: {len(first_data)}")
-#     print(f"第一项数据内容:")
-#     print(first_data)
-#
-#     # 检查 ProWTADataset 中某些张量的维度和数据
-#     print("\n检查 dataset 中的部分张量维度:")
-#     print(f"self.target_type[0] 维度: {dataset.target_type[0].shape}")
-#     print(f"self.target_coordinates[0] 维度: {dataset.target_coordinates[0].shape}")
-#     print(f"self.target_speed[0] 维度: {dataset.target_speed[0].shape}")
-#
-#     # 测试 update 方法
-#     print("\n测试 update 方法:")
-#     pij = torch.rand((num_samples, 1, 20 * 20)).to(device)
-#     qjk = torch.rand((num_samples, 1, 20)).to(device)
-#     vt = torch.rand((num_samples, 1, 20)).to(device)
-#     execution_time = torch.rand((num_samples, 1, 20)).to(device)
-#     weapon_cooldown = torch.rand((num_samples, 1, 20)).to(device)
-#     T_to_A = torch.randint(0, 3, (num_samples, 20)).to(device)
-#
-#     dataset.update(num_weapon=20, num_target=20, pij=pij, qjk=qjk, vt=vt, execution_time=execution_time,
-#                    weapon_cooldown=weapon_cooldown, T_to_A=T_to_A)
-#
-#     # 测试更新后的某些属性
-#     print("\n测试更新后的属性:")
-#     print(f"self.target_pij1 维度: {dataset.target_pij1.shape}")
-#     print(f"self.weapon_pij 维度: {dataset.weapon_pij.shape}")
-#     print(f"self.target_threat1 维度: {dataset.target_threat1.shape}")
-#     print(f"self.weapon_cooldown1 维度: {dataset.weapon_cooldown1.shape}")
+def distance(human_plan, agent_plan):
+    # 去掉额外的维度，确保输入是1D张量
+    human_plan = human_plan.squeeze(0).to(device).to(torch.float32)
+    agent_plan = agent_plan.squeeze(0).to(device).to(torch.float32)
+
+    # 计算欧几里得距离
+    dist = torch.norm(human_plan - agent_plan, p=2)  # p=2表示欧几里得距离
+
+    return dist
+
+def entropy_regularization_loss(logp, lambda_ = 0.5):
+    # 计算P(a|s)，通过对logP(a|s)取指数
+    p = torch.exp(logp)
+
+    # 计算熵正则化损失
+    entropy_loss = -lambda_ * torch.sum(p * logp)
+
+    return entropy_loss
 
 
-# # 运行测试
-# test_pro_wta_dataset(num_samples=1)
+def cosine_similarity_percentage(human_plan, agent_plan):
+    # 去掉额外的维度，确保输入是1D张量
+    human_plan = human_plan.squeeze(0).to(device).to(torch.float32)
+    agent_plan = agent_plan.squeeze(0).to(device).to(torch.float32)
+
+    # 计算余弦相似度
+    dot_product = torch.dot(human_plan, agent_plan)
+    human_norm = torch.norm(human_plan)
+    agent_norm = torch.norm(agent_plan)
+
+    cosine_sim = dot_product / (human_norm * agent_norm)
+
+    # 将相似度归一化为百分比（0到100之间）
+    similarity_percentage = (cosine_sim + 1) / 2 * 100  # 余弦相似度[-1, 1] -> [0, 100]
+
+    return similarity_percentage
+
