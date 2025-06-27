@@ -30,7 +30,7 @@ def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
     for i in range(chosen_idx.size()[0]):
         target_array.append(list(range(target_index[i], end_c[i], num_target)))
     target_mask = torch.tensor(target_array).to(device)
-    mask.scatter_(1, weapon_mask, 0)
+    # mask.scatter_(1, weapon_mask, 0)
     mask.scatter_(1, target_mask, 0)
     return mask
 
@@ -151,7 +151,6 @@ class ProWTADataset(Dataset):
         self.dataset2 = torch.cat(
             (self.blue_type1, self.blue_speed1, self.blue_azimuth1, self.blue_range1, self.blue_longitude1,
              self.blue_latitude1), dim=1)
-
 
     def init_red_input(self, num_blue):
         self.red_type_wta = self.red_type
