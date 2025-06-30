@@ -8,7 +8,7 @@ import matplotlib
 import torch.nn.functional as F
 import pandas as pd
 import ast
-
+# 1
 matplotlib.use('Agg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 file_path = '蓝方数据库.xlsx'  # 使用相对路径

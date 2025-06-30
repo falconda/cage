@@ -27,7 +27,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # device = torch.device("cpu")
-
+# 1
 
 class StateCritic(nn.Module):
     """Estimates the problem complexity.
