@@ -61,12 +61,13 @@ class ProWTADataset(Dataset):
 
         seed = np.random.randint(123456789)
         global line
+        # 这里手动填一下最大行
+        line = random.randint(0, 5326)
         np.random.seed(seed)
         torch.manual_seed(seed)
         self.num_samples = num_samples
         # 按行遍历前num_samples行
         for index, row in data.iloc[line:num_samples+line].iterrows():
-            line += 1
             self.blue_type = parse_tensor_from_string(row['蓝方类型'])
             self.blue_coordinates = parse_tensor_from_string(row['蓝方经纬度'])
             self.blue_speed = parse_tensor_from_string(row['蓝方速度'])
@@ -410,7 +411,13 @@ def cosine_similarity_percentage(human_plan, agent_plan):
 
     # 将相似度归一化为百分比（0到100之间）
     similarity_percentage = (cosine_sim + 1) / 2 * 100  # 余弦相似度[-1, 1] -> [0, 100]
-    if len(human_plan) == 1 and human_plan[0] == 0 and len(agent_plan) == 1 and agent_plan[0] == 0:
-        similarity_percentage = torch.tensor(1.0).to(device)
+    if len(human_plan) == 1 and len(agent_plan) == 1:
+        if human_plan[0] == agent_plan[0] == 0:
+            similarity_percentage = torch.tensor(1.0).to(device)
+        else:
+            similarity_percentage = torch.tensor(0.0).to(device)
+    if similarity_percentage.isnan == 1:
+        print(f'human_plan=', human_plan)
+        print(f'agent_plan=', agent_plan)
 
     return similarity_percentage
