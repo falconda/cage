@@ -62,7 +62,7 @@ class ProWTADataset(Dataset):
         seed = np.random.randint(123456789)
         global line
         # 这里手动填一下最大行
-        line = random.randint(0, 5326)
+        line = random.randint(0, 170)
         np.random.seed(seed)
         torch.manual_seed(seed)
         self.num_samples = num_samples

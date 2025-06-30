@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import wta
+import wta_blue
 import tsp
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -110,7 +110,7 @@ def validate(data_loader, actor, reward_fn, num_weapon, num_target, render_fn=No
         with torch.no_grad():
             tour_indices, _ = actor.forward(static, static1, x0)
 
-        tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
+        tour_indices = wta_blue.trans_to_plan(tour_indices, num_weapon, num_target)
         # Sum the log probabilities for each city in the tour
         # reward = reward_fn(static, tour_indices)
         # reward = reward_fn(Pij, Threat, Qjk, V_a, tour_indices, execu_time, weapon_cool).mean().item()
@@ -198,6 +198,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
             train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
             for batch_idx, batch in enumerate(train_loader):
                 static, x0, static1, static2, num_weapon, num_target, threat, pij, qjk, human_plan  = batch
+
                 static = static.to(device)
                 static1 = static1.to(device)
                 static2 = static2.to(device)
@@ -205,14 +206,14 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
                 # Full forward pass through the dataset
                 tour_indices, tour_logp = actor(num_weapon, num_target, static, static1, static2, x0)
-                tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
+                tour_indices = wta_blue.trans_to_plan(tour_indices, num_weapon, num_target)
                 # Sum the log probabilities for each city in the tour
                 # reward = reward_fn(static, tour_indices)
-                reward = wta.cosine_similarity_percentage(human_plan, tour_indices)
+                reward = wta_blue.cosine_similarity_percentage(human_plan, tour_indices)
                 print(f'reward=', reward)
 
-                actor_loss_1 = wta.distance(human_plan, tour_indices)
-                actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
+                actor_loss_1 = wta_blue.distance(human_plan, tour_indices)
+                actor_loss_2 = wta_blue.entropy_regularization_loss(tour_logp)
                 actor_loss = actor_loss_1 + 0.01 * actor_loss_2
 
                 # 梯度清零、反向传播、优化器更新
@@ -291,7 +292,7 @@ def train_tsp(args):
                     STATIC2_SIZE,
                     args.hidden_size,
                     update_fn,
-                    wta.wta_update_mask,
+                    wta_blue.wta_update_mask,
                     args.num_layers,
                     args.dropout).to(device)
 
@@ -300,7 +301,7 @@ def train_tsp(args):
     kwargs = vars(args)
     kwargs['train_data'] = train_data
     kwargs['valid_data'] = valid_data
-    kwargs['reward_fn'] = wta.compute_batch
+    kwargs['reward_fn'] = wta_blue.compute_batch
     kwargs['render_fn'] = tsp.render
     kwargs['num_weapon'] = args.num_weapon
     kwargs['num_target'] = args.num_target
@@ -319,7 +320,7 @@ def train_tsp(args):
 
     test_dir = 'test'
     test_loader = DataLoader(test_data, args.batch_size, False, num_workers=0)
-    out = validate_1(test_loader, actor, wta.compute_batch, args.num_target, tsp.render, test_dir, num_plot=5)
+    out = validate_1(test_loader, actor, wta_blue.compute_batch, args.num_target, tsp.render, test_dir, num_plot=5)
     print('Average tour length: ', out)
 
 if __name__ == '__main__':
