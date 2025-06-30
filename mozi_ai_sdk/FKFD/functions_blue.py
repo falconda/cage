@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List, Dict
 import re
+import math
 #1234567890
 def monitor_attack_results(attack_records:list, facilities_info:list, coord_tol=0.0001):
     """
@@ -679,3 +680,57 @@ def extract_target_encoded_attributes(facilities_in):
         type_codes, ammo_type_codes, armor_type_codes,
         mission_codes, is_visible_codes, weather_codes,
         damages, importance_scores, urgency_scores]
+
+def apply_assignment_with_limits(plan, tij, weapon_num):
+    """
+    根据遗传算法输出的配对矩阵 plan，结合 tij 和 weapon_num 得到实际分配矩阵
+    :param plan: [n_units x n_targets] 0-1 配对矩阵
+    :param tij: [n_units x n_targets] 所需武器数量矩阵
+    :param weapon_num: [n_units] 每个单位的武器总数
+    :return: [n_units x n_targets] 实际分配矩阵
+    """
+    n_units, n_targets = plan.shape
+    tij = np.array(tij)
+    weapon_num = np.array(weapon_num)
+    actual = np.zeros_like(plan, dtype=int)
+
+    for i in range(n_units):
+        for j in range(n_targets):
+            if plan[i][j] == 1:
+                assign_qty = min(tij[i][j], weapon_num[i])  # 若多个目标时，这里还要考虑剩余量
+                actual[i][j] = assign_qty
+                weapon_num[i] -= assign_qty  # 减掉本次消耗
+                if weapon_num[i] <= 0:
+                    break  # 当前单位无剩余武器，跳出
+
+    return actual
+
+platform_weapon_capability = {
+    'GBU-38(V)1/B联合直接攻击炸弹': 136/87,
+    'AGM-65G2型“小牛”空地战术导弹': 136/136,
+}
+
+target_defense_value = {
+    'HQ-17': 0.5,
+    'HQ-16B': 0.5,
+    'HQ-9A': 0.5,
+    '雷达': 0.5,
+    '基地': 0.3
+
+}
+
+def build_tij_matrix(acs_assign_weapon, targets_in_info):
+    n_units = len(acs_assign_weapon)
+    n_targets = len(targets_in_info)
+    tij = np.zeros((n_units, n_targets), dtype=int)
+
+    for i, (ac, guid, name, weapon_name, count, wid) in enumerate(acs_assign_weapon):
+
+        attack_power = platform_weapon_capability.get(weapon_name, 1)  # 避免除0
+
+        for j, (target, guid_t, name_t, lat, lon) in enumerate(targets_in_info):
+            name_type = extract_type_from_name(name_t)
+            defense = target_defense_value.get(name_type, 1)
+            tij[i][j] = math.ceil(defense /(2* attack_power))
+
+    return tij

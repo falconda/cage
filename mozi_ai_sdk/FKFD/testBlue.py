@@ -19,7 +19,8 @@ from mozi_ai_sdk.FKFD.WTA.TS_WTA import TS_WTA
 from mozi_ai_sdk.FKFD.env.env import Environment
 from mozi_ai_sdk.FKFD.env import etc
 from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num, transpose
-from mozi_ai_sdk.FKFD.functions_blue import monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets, extract_target_encoded_attributes
+from mozi_ai_sdk.FKFD.functions_blue import (monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets,
+                                             extract_targets_attributes, extract_target_encoded_attributes, apply_assignment_with_limits)
 from mozi_ai_sdk.FKFD.dataProcess import processWtaData
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
 
@@ -431,16 +432,22 @@ def run(env):
                 if len(weapon_num) > 0 and  len(targets_in_info) > 0:
                     pij = pij_generate(targets_in_info, acs_assign_weapon)
                     value = evaluate_targets(targets_in_info, facilities_in_info)
+                    # 具体使用多少数量的武器： tij决定
+                    tij = np.full((len(acs_assign_weapon), len(targets_in_info)), 2)
                     # logging.info(f'价值评估{value}')
                     # 初始化算法
-                    solver = WTA_GA(pij, value, weapon_num, pop_size=30, generations=100)
-                    plan, b_fitness = solver.evolve()
+                    solver = WTA_GA(pij, value, weapon_num, tij, pop_size=30, generations=100)
+                    pair_plan, b_fitness = solver.evolve()
+                    plan = apply_assignment_with_limits(pair_plan, tij, weapon_num)
                     # logging.info(f'产生plan{plan}, 对应适应度{b_fitness}')
 
                     # 数据库构建
                     # 蓝方对红方的
                     if step_count != 1:
-                        data_blue = extract_target_encoded_attributes(facilities_in)
+                        # v1
+                        data_blue = extract_targets_attributes(facilities_in)
+                        # v2
+                        # data_blue = extract_target_encoded_attributes(facilities_in)
                         # 蓝方的
                         data = []
                         for acs in acs_assign_weapon:
@@ -461,17 +468,18 @@ def run(env):
                         data_log.append(fij)
                         data_log.append(plan.tolist())
 
-                        # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
-                        custom_headers = ['设施类型名称', '纬度', '经度', '作战范围','射击频率','武器部能力',
-                                          '设施类型', '武器类型', '装甲类型', '任务类型', '可视类型', '气象条件类型',
-                                          '损伤情况', '重要性', '急迫性',
-                                          '空中单位名称', '目标类型', '经纬度', '速度', '方位角', '作战范围',
-                                          '武器数量', '目标数量', '威胁值', '打击概率', '损伤概率', '可行性', '分配方案']  # 自定义表头
-                        df = pd.DataFrame([data_log], columns=custom_headers)
+                        # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+                        # custom_headers = ['设施类型名称', '纬度', '经度', '作战范围','射击频率','武器部能力',
+                        #                   '设施类型', '武器类型', '装甲类型', '任务类型', '可视类型', '气象条件类型',
+                        #                   '损伤情况', '重要性', '急迫性',
+                        #                   '空中单位名称', '目标类型', '经纬度', '速度', '方位角', '作战范围',
+                        #                   '武器数量', '目标数量', '威胁值', '打击概率', '损伤概率', '可行性', '分配方案']  # 自定义表头
+                        # df = pd.DataFrame([data_log], columns=custom_headers)
+                        # file_path = '蓝方数据库输出v2.xlsx'
 
                         # Excel 文件路径
-                        file_path = '蓝方数据库输出v2.xlsx'
-
+                        file_path = '蓝方数据库.xlsx'
+                        df = pd.DataFrame([data_log])
                         if os.path.exists(file_path):
                             # 加载已有 Excel 文件
                             book = load_workbook(file_path)
