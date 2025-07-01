@@ -421,3 +421,34 @@ def cosine_similarity_percentage(human_plan, agent_plan):
         print(f'agent_plan=', agent_plan)
 
     return similarity_percentage
+
+def soft_hamming_loss(human_plan, agent_plan, num_targets):
+    """
+    human_plan, agent_plan: [B, num_weapons]，其中 -1 表示未分配
+    num_targets: 原始目标数 N（不包括 -1），我们会 +1 用于 one-hot
+    """
+    # 全部加 1，让 -1 → 0，其它 +1，对应目标 1~N
+    human_plan_shifted = human_plan + 1
+    agent_plan_shifted = agent_plan + 1
+
+    num_classes = int(num_targets + 1)  # 新的一类：未分配变成 class 0
+
+    # one-hot 编码后比较
+    human_onehot = F.one_hot(human_plan_shifted, num_classes=num_classes).float().to(device)
+    agent_onehot = F.one_hot(agent_plan_shifted, num_classes=num_classes).float().to(device)
+
+    # 计算每个武器预测错误的程度
+    diff = torch.abs(agent_onehot - human_onehot).sum(dim=-1).to(device)  # [B, num_weapons]
+
+    # 只对原始 human_plan ≠ -1 的位置进行损失计算
+    valid_mask = (human_plan >= 0).float().to(device)
+    masked_diff = diff * valid_mask
+
+    # 取平均损失
+    loss = masked_diff.sum() / valid_mask.sum().clamp(min=1.0)
+
+    return loss.clone().detach().requires_grad_(True).to(device)
+
+def cosine_similarity_loss(human_plan, agent_plan):
+    sim = cosine_similarity_percentage(human_plan, agent_plan)  # 输出百分比
+    return ((100.0 - sim) / 100.0).to(device)  # 把相似度变成损失（归一化到 0~1）

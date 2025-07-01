@@ -36,11 +36,12 @@ class StateCritic(nn.Module):
     the encoder + decoder, and returns an estimate of complexity
     """
 
-    def __init__(self, static_size, static1_size, hidden_size, num_weapon, num_target):
+    def __init__(self, static_size, static1_size, static2_size, hidden_size, num_weapon, num_target):
         super(StateCritic, self).__init__()
 
         self.static_encoder = Encoder(static_size, hidden_size)
         self.static1_encoder = Encoder(static1_size, hidden_size)
+        self.static2_encoder = Encoder(static2_size, hidden_size)
 
         # Define the encoder & decoder models
         self.fc1 = nn.Conv1d(hidden_size, num_weapon * num_target, kernel_size=1)
@@ -51,10 +52,11 @@ class StateCritic(nn.Module):
             if len(p.shape) > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, static, static1):
+    def forward(self, static, static1, static2):
 
         # Use the probabilities of visiting each
-        static_hidden = self.static_encoder(static) + self.static1_encoder(static1)
+        # static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
+        static_hidden = self.static_encoder(static)
         output = F.relu(self.fc1(static_hidden))
         output = F.relu(self.fc2(output))
         output = self.fc3(output).sum(dim=2)
@@ -178,6 +180,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         os.makedirs(checkpoint_dir)
 
     actor_optim = optim.Adam(actor.parameters(), lr=actor_lr)
+    critic_optim = optim.Adam(critic.parameters(), lr=critic_lr)
 
 
     best_params = None
@@ -209,12 +212,19 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 tour_indices = wta_blue.trans_to_plan(tour_indices, num_weapon, num_target)
                 # Sum the log probabilities for each city in the tour
                 # reward = reward_fn(static, tour_indices)
-                reward = wta_blue.cosine_similarity_percentage(human_plan, tour_indices)
-                print(f'reward=', reward)
+                reward = wta_blue.soft_hamming_loss(human_plan, tour_indices, num_target)
+                critic_est = critic(static, static1, static2).view(-1)
+                # print(f'reward=', reward)
 
-                actor_loss_1 = wta_blue.distance(human_plan, tour_indices)
-                actor_loss_2 = wta_blue.entropy_regularization_loss(tour_logp)
-                actor_loss = actor_loss_1 + 0.01 * actor_loss_2
+                # actor_loss_1 = wta.distance(human_plan, tour_indices)
+                actor_loss_1 = wta_blue.soft_hamming_loss(human_plan, tour_indices, num_target)
+                # actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
+                actor_loss_2 = wta_blue.cosine_similarity_loss(human_plan, tour_indices)
+                # actor_loss = actor_loss_1 + 0.01 * actor_loss_2
+                actor_loss_all = actor_loss_1 + actor_loss_2
+                advantage = (actor_loss_all - critic_est)
+                actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
+                critic_loss = torch.mean(advantage ** 2)
 
                 # 梯度清零、反向传播、优化器更新
                 actor_optim.zero_grad()
@@ -222,15 +232,20 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
                 actor_optim.step()
 
-                rewards.append(torch.mean(reward.detach()).item())
+                critic_optim.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
+                critic_optim.step()
+
+                rewards.append(torch.mean(actor_loss_all.detach()).item())
                 rewards1.append(torch.mean(reward.detach()).item())
                 losses.append(torch.mean(actor_loss.detach()).item())
 
         mean_loss = np.mean(losses)
-        print(f'mean_loss=', mean_loss)
+        # print(f'mean_loss=', mean_loss)
         # mean_reward = np.mean(rewards)
         mean_reward = np.mean(rewards)
-        # print(f'mean_reward=', mean_reward)
+        print(f'mean_reward=', mean_reward)
 
         # Save the weights
         epoch_dir = os.path.join(checkpoint_dir, '%s' % epoch)
@@ -296,7 +311,7 @@ def train_tsp(args):
                     args.num_layers,
                     args.dropout).to(device)
 
-    critic = StateCritic(STATIC_SIZE, STATIC1_SIZE, args.hidden_size, args.num_weapon, args.num_target).to(device)
+    critic = StateCritic(STATIC_SIZE, STATIC1_SIZE, STATIC2_SIZE,args.hidden_size, args.num_weapon, args.num_target).to(device)
 
     kwargs = vars(args)
     kwargs['train_data'] = train_data

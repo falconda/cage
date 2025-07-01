@@ -184,7 +184,8 @@ class DRL4TSP(nn.Module):
         # Static elements only need to be processed once, and can be used across
         # all 'pointing' iterations. When / if the dynamic elements change,
         # their representations will need to get calculated again.
-        static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
+        # static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
+        static_hidden = self.static_encoder(static)
 
         for i in range(max_steps):
             if not mask.byte().any():
