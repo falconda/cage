@@ -42,12 +42,13 @@ class ProWTADataset(Dataset):
 
         seed = np.random.randint(123456789)
         global line
+        row_count = data.shape[0]
+        line = random.randint(0, 5326)
         np.random.seed(seed)
         torch.manual_seed(seed)
         self.num_samples = num_samples
         # 按行遍历前num_samples行
-        for index, row in data.iloc[line:num_samples+line].iterrows():
-            line += 1
+        for index, row in data.iloc[line:num_samples + line].iterrows():
             # 提取蓝方的数据
             self.target_type = (torch.tensor(ast.literal_eval(row['目标类型'])))
             self.target_coordinates = (torch.tensor(ast.literal_eval(row['目标经纬度'])))
@@ -55,7 +56,6 @@ class ProWTADataset(Dataset):
             self.target_azimuth = (torch.tensor(ast.literal_eval(row['目标方位角'])))
             self.target_range = (torch.tensor(ast.literal_eval(row['作战范围'])))
             # 提取红方的数据
-            # 12312
             self.weapon_type = (torch.tensor(ast.literal_eval(row['红方武器类型'])))
             self.weapon_coordinates = (torch.tensor(ast.literal_eval(row['红方武器经纬度'])))
             self.weapon_damage = (torch.tensor(ast.literal_eval(row['武器毁伤程度'])))
@@ -94,7 +94,6 @@ class ProWTADataset(Dataset):
         self.Threat = self.vt
         self.target_pij2 = self.qjk.squeeze()
         self.Qjk = self.qjk
-
 
     def __len__(self):
         return self.size
@@ -210,14 +209,12 @@ class ProWTADataset(Dataset):
             (self.weapon_type1, self.weapon_longitude1, self.weapon_latitude1, self.weapon_damage1, self.weapon_range1,
              self.weapon_ammunition1, self.weapon_weight1), dim=1)
 
-
-
     def __getitem__(self, idx):
         # (static, dynamic, start_loc)
         # 直接通过索引返回数据
         return (self.dataset1[idx], [], self.dataset2[idx], self.dataset3[idx],
                 self.Pij[idx], self.Threat, self.Qjk, self.norm_value, torch.tensor(self.num_weapon).to(device),
-        torch.tensor(self.num_target).to(device), self.plan)
+                torch.tensor(self.num_target).to(device), self.plan)
 
 
 def pro_wta_reward(static, tour_indices):
@@ -369,17 +366,35 @@ def trans_to_plan(index, num_weapon, num_target):
     return index_sort
 
 
-def distance(human_plan, agent_plan):
-    # 去掉额外的维度，确保输入是1D张量
-    human_plan = human_plan.squeeze(0).to(device).to(torch.float32)
-    agent_plan = agent_plan.squeeze(0).to(device).to(torch.float32)
+def soft_hamming_loss(human_plan, agent_plan, num_targets):
+    """
+    human_plan, agent_plan: [B, num_weapons]，其中 -1 表示未分配
+    num_targets: 原始目标数 N（不包括 -1），我们会 +1 用于 one-hot
+    """
+    # 全部加 1，让 -1 → 0，其它 +1，对应目标 1~N
+    human_plan_shifted = human_plan + 1
+    agent_plan_shifted = agent_plan + 1
 
-    # 计算欧几里得距离
-    dist = torch.norm(human_plan - agent_plan, p=2)  # p=2表示欧几里得距离
+    num_classes = int(num_targets + 1)  # 新的一类：未分配变成 class 0
 
-    return dist
+    # one-hot 编码后比较
+    human_onehot = F.one_hot(human_plan_shifted, num_classes=num_classes).float().to(device)
+    agent_onehot = F.one_hot(agent_plan_shifted, num_classes=num_classes).float().to(device)
 
-def entropy_regularization_loss(logp, lambda_ = 0.5):
+    # 计算每个武器预测错误的程度
+    diff = torch.abs(agent_onehot - human_onehot).sum(dim=-1).to(device)  # [B, num_weapons]
+
+    # 只对原始 human_plan ≠ -1 的位置进行损失计算
+    valid_mask = (human_plan >= 0).float().to(device)
+    masked_diff = diff * valid_mask
+
+    # 取平均损失
+    loss = masked_diff.sum() / valid_mask.sum().clamp(min=1.0)
+
+    return loss.clone().detach().requires_grad_(True).to(device)
+
+
+def entropy_regularization_loss(logp, lambda_=0.5):
     # 计算P(a|s)，通过对logP(a|s)取指数
     p = torch.exp(logp)
 
@@ -403,5 +418,122 @@ def cosine_similarity_percentage(human_plan, agent_plan):
 
     # 将相似度归一化为百分比（0到100之间）
     similarity_percentage = (cosine_sim + 1) / 2 * 100  # 余弦相似度[-1, 1] -> [0, 100]
+    if len(human_plan) == 1 and len(agent_plan) == 1:
+        if human_plan[0] == agent_plan[0] == 0:
+            similarity_percentage = torch.tensor(1.0).to(device)
+        else:
+            similarity_percentage = torch.tensor(0.0).to(device)
+    if similarity_percentage.isnan == 1:
+        print(f'human_plan=', human_plan)
+        print(f'agent_plan=', agent_plan)
 
     return similarity_percentage
+
+
+def cosine_similarity_loss(human_plan, agent_plan):
+    sim = cosine_similarity_percentage(human_plan, agent_plan)  # 输出百分比
+    return ((100.0 - sim) / 100.0).to(device)  # 把相似度变成损失（归一化到 0~1）
+
+
+def soft_hamming_similarity(human_plan, agent_plan, num_targets):
+    """
+    计算与软汉明距离相关的相似度，结果在 [0, 1] 范围内，且相似度尽量较大。
+    human_plan, agent_plan: [B, num_weapons]，其中 -1 表示未分配
+    num_targets: 原始目标数 N（不包括 -1），我们会 +1 用于 one-hot
+    """
+    # 全部加 1，让 -1 → 0，其它 +1，对应目标 1~N
+    human_plan_shifted = human_plan + 1
+    agent_plan_shifted = agent_plan + 1
+
+    num_classes = int(num_targets + 1)  # 新的一类：未分配变成 class 0
+
+    # one-hot 编码后比较
+    human_onehot = F.one_hot(human_plan_shifted, num_classes=num_classes).float().to(device)
+    agent_onehot = F.one_hot(agent_plan_shifted, num_classes=num_classes).float().to(device)
+
+    # 计算每个武器预测错误的程度
+    diff = torch.abs(agent_onehot - human_onehot).sum(dim=-1).to(device)  # [B, num_weapons]
+
+    # 只对原始 human_plan ≠ -1 的位置进行损失计算
+    valid_mask = (human_plan >= 0).float().to(device)
+    masked_diff = diff * valid_mask
+
+    # 计算总的误差
+    total_error = masked_diff.sum() / valid_mask.sum().clamp(min=1.0)
+
+    # 通过反转损失来获得相似度，确保结果在 [0, 1] 之间
+    similarity = 1.0 / (1.0 + total_error)  # 使用加1平滑避免除零
+
+    # 为了让相似度更大一些，可以应用一种加权策略或平滑处理
+    # 平滑处理：增强相似度，避免过小的数值
+    similarity = torch.clamp(similarity, min=0.0, max=1.0)  # 确保相似度在 [0, 1] 之间
+
+    return 1 - similarity
+
+
+def compute_similarity(human_plan, agent_plan):
+    """
+    遍历 human_plan 和 agent_plan，若同一位置的元素值相同，则加1分
+    最终返回得分 / 总分，其中总分即为序列的长度
+    """
+    # 确保两者长度相同
+    """
+    计算 human_plan 和 agent_plan 中非 -1 且位置相同的元素占比（相似度）
+
+    Args:
+        human_plan: tensor，[B, N] 或 [N]
+        agent_plan: tensor，[B, N] 或 [N]
+
+    Returns:
+        similarity_score: float，两个序列在有效比较区域的匹配比例
+    """
+    # 去掉 batch 维度并转为 float32（如果有）
+    human_plan = human_plan.squeeze(0).to(device).to(torch.float32)
+    agent_plan = agent_plan.squeeze(0).to(device).to(torch.float32)
+
+    assert human_plan.shape == agent_plan.shape, "human_plan 和 agent_plan 必须具有相同形状"
+
+    # 找出 human_plan 中非 -1 的位置
+    valid_mask = (human_plan != -1)
+
+    # 在这些位置上比较值是否相等
+    matches = (human_plan == agent_plan) & valid_mask
+    match_count = matches.sum().float()
+    total_valid = valid_mask.sum().float().clamp(min=1.0)  # 防止除零
+
+    similarity = match_count / total_valid
+
+    # 不相似度
+    return 1-similarity
+
+
+def compute_similarity_norm(human_plan, agent_plan):
+    """
+    简单位置匹配相似度：
+    - 相同位置相同元素 +1 分
+    - 不同则 0 分
+    - 总得分 / 总长度
+
+    Args:
+        human_plan: tensor，[B, N] 或 [N]
+        agent_plan: tensor，[B, N] 或 [N]
+
+    Returns:
+        similarity_score: float
+    """
+    # 去掉 batch 维度并转为 float
+    human_plan = human_plan.squeeze(0).to(device).to(torch.float32)
+    agent_plan = agent_plan.squeeze(0).to(device).to(torch.float32)
+
+    assert human_plan.shape == agent_plan.shape, "human_plan 和 agent_plan 必须具有相同形状"
+
+    # 计算匹配得分（相同为1，不同为0）
+    match_score = (human_plan == agent_plan).float()
+
+    # 总长度（全部位置都要参与）
+    total_length = match_score.numel()
+
+    similarity = match_score.sum() / total_length
+
+    return 1 - similarity
+

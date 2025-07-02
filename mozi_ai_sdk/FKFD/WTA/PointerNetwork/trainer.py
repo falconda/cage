@@ -237,8 +237,6 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         # critic_loss.backward()
         # torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
         # critic_optim.step()
-
-
         for train_step in range(batchsize):
             actor_loss = actor_losses[train_step]
             critic_loss = critic_losses[train_step]
@@ -252,8 +250,8 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
             critic_loss.backward()
             torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
             critic_optim.step()
-        losses.append(torch.mean(actor_loss.detach()).item())
-        mean_loss = np.mean(losses)
+        # losses.append(torch.mean(actor_loss.detach()).item())
+        # mean_loss = np.mean(losses)
         # print(f'mean_loss=', mean_loss)
         mean_reward = np.mean(reward_list)
         print(f'mean_reward=',mean_reward)
