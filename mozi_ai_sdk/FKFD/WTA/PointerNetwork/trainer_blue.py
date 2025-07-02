@@ -186,6 +186,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     best_params = None
     best_reward = torch.inf
     rewards1 = []
+    batchsize = 200
 
     for epoch in range(200):
 
@@ -196,7 +197,10 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
 
         epoch_start = time.time()
         start = epoch_start
-        for step in range(200):
+        actor_losses = []
+        reward_list = []
+        critic_losses = []
+        for step in range(batchsize):
             train_data = ProWTADataset(args.train_size)
             train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
             for batch_idx, batch in enumerate(train_loader):
@@ -217,34 +221,46 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 # print(f'reward=', reward)
 
                 # actor_loss_1 = wta.distance(human_plan, tour_indices)
-                actor_loss_1 = wta_blue.soft_hamming_loss(human_plan, tour_indices, num_target)
+                # actor_loss_1 = wta_blue.soft_hamming_loss(human_plan, tour_indices, num_target)
                 # actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
-                actor_loss_2 = wta_blue.cosine_similarity_loss(human_plan, tour_indices)
+                # actor_loss_2 = wta_blue.cosine_similarity_loss(human_plan, tour_indices)
                 # actor_loss = actor_loss_1 + 0.01 * actor_loss_2
-                actor_loss_all = actor_loss_1 + actor_loss_2
+                actor_loss_all = wta_blue.compute_similarity(human_plan, tour_indices)
+                reward_list.append(1 - actor_loss_all.item())
                 advantage = (actor_loss_all - critic_est)
                 actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
                 critic_loss = torch.mean(advantage ** 2)
+                actor_losses.append(actor_loss)
+                critic_losses.append(critic_loss)
 
-                # 梯度清零、反向传播、优化器更新
-                actor_optim.zero_grad()
-                actor_loss.backward()
-                torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-                actor_optim.step()
+        actor_loss = torch.stack(actor_losses).mean()
+        critic_loss = torch.stack(critic_losses).mean()
+        # 梯度清零、反向传播、优化器更新
+        actor_optim.zero_grad()
+        actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+        actor_optim.step()
 
-                critic_optim.zero_grad()
-                critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
-                critic_optim.step()
+        critic_optim.zero_grad()
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
+        critic_optim.step()
 
-                rewards.append(torch.mean(actor_loss_all.detach()).item())
-                rewards1.append(torch.mean(reward.detach()).item())
-                losses.append(torch.mean(actor_loss.detach()).item())
-
-        mean_loss = np.mean(losses)
-        # print(f'mean_loss=', mean_loss)
-        # mean_reward = np.mean(rewards)
-        mean_reward = np.mean(rewards)
+        # for train_step in range(batchsize):
+        #     actor_loss = actor_losses[train_step]
+        #     critic_loss = critic_losses[train_step]
+        #     # 梯度清零、反向传播、优化器更新
+        #     actor_optim.zero_grad()
+        #     actor_loss.backward()
+        #     torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+        #     actor_optim.step()
+        #
+        #     critic_optim.zero_grad()
+        #     critic_loss.backward()
+        #     torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
+        #     critic_optim.step()
+        # losses.append(torch.mean(actor_loss.detach()).item())
+        mean_reward = np.mean(reward_list)
         print(f'mean_reward=', mean_reward)
 
         # Save the weights
