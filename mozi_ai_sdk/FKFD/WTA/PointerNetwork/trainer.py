@@ -103,7 +103,7 @@ def validate(data_loader, actor, reward_fn, num_weapon, num_target, render_fn=No
 
     rewards = []
     for batch_idx, batch in enumerate(data_loader):
-        static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target, human_plan = batch
+        static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target, human_plan, weapon_relation = batch
 
         static = static.to(device)
         static1 = static1.to(device)
@@ -180,7 +180,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     reward_line = []
     batchsize = 300
 
-    for epoch in range(300):
+    for epoch in range(150):
 
         actor.train()
         critic.train()
@@ -197,7 +197,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
             train_data = ProWTADataset(args.train_size)
             train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
             for batch_index, batch in enumerate(train_loader):
-                static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target, human_plan = batch
+                static, x0, static1, static2, Pij, Threat, Qjk, V_a, num_weapon, num_target, human_plan, weapon_relation = batch
 
                 static = static.to(device)
                 static1 = static1.to(device)
@@ -330,8 +330,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', default=None)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--task', default='wta')
-    parser.add_argument('--actor_lr', default= 1e-4, type=float)
-    parser.add_argument('--critic_lr', default= 1e-4, type=float)
+    parser.add_argument('--actor_lr', default= 1e-5, type=float)
+    parser.add_argument('--critic_lr', default= 1e-5, type=float)
     parser.add_argument('--max_grad_norm', default=2., type=float)
     parser.add_argument('--batch_size', default=20, type=int)
     parser.add_argument('--hidden', dest='hidden_size', default=256, type=int)

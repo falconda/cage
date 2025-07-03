@@ -30,7 +30,7 @@ def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
     for i in range(chosen_idx.size()[0]):
         target_array.append(list(range(target_index[i], end_c[i], num_target)))
     target_mask = torch.tensor(target_array).to(device)
-    # mask.scatter_(1, weapon_mask, 0)
+    mask.scatter_(1, weapon_mask, 0)
     mask.scatter_(1, target_mask, 0)
     return mask
 
@@ -479,7 +479,7 @@ def soft_hamming_similarity(human_plan, agent_plan, num_targets):
     # 平滑处理：增强相似度，避免过小的数值
     similarity = torch.clamp(similarity, min=0.0, max=1.0)  # 确保相似度在 [0, 1] 之间
 
-    return similarity
+    return 1 - similarity
 
 
 def compute_similarity(human_plan, agent_plan):

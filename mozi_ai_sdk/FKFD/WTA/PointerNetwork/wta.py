@@ -4,6 +4,7 @@ import re
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pack_sequence
+from collections import defaultdict
 import matplotlib
 import torch.nn.functional as F
 import pandas as pd
@@ -214,7 +215,7 @@ class ProWTADataset(Dataset):
         # 直接通过索引返回数据
         return (self.dataset1[idx], [], self.dataset2[idx], self.dataset3[idx],
                 self.Pij[idx], self.Threat, self.Qjk, self.norm_value, torch.tensor(self.num_weapon).to(device),
-                torch.tensor(self.num_target).to(device), self.plan)
+                torch.tensor(self.num_target).to(device), self.plan, self.weapon_relation)
 
 
 def pro_wta_reward(static, tour_indices):
@@ -473,11 +474,6 @@ def soft_hamming_similarity(human_plan, agent_plan, num_targets):
 
 def compute_similarity(human_plan, agent_plan):
     """
-    遍历 human_plan 和 agent_plan，若同一位置的元素值相同，则加1分
-    最终返回得分 / 总分，其中总分即为序列的长度
-    """
-    # 确保两者长度相同
-    """
     计算 human_plan 和 agent_plan 中非 -1 且位置相同的元素占比（相似度）
 
     Args:
@@ -536,4 +532,51 @@ def compute_similarity_norm(human_plan, agent_plan):
     similarity = match_score.sum() / total_length
 
     return 1 - similarity
+
+def similar_test(plan, human_plan, weapon_relation):
+    """
+        plan: Tensor shape (1, N), e.g., tensor([[2, 1, 0]])
+        human_plan: Tensor shape (1, N), e.g., tensor([[0, 2, 1]])
+        weapon_relation: Tensor shape (1, N), e.g., tensor([[0, 0, 0]])
+        """
+    plan = plan.squeeze(0).tolist()
+    human_plan = human_plan.squeeze(0).tolist()
+    weapon_relation = weapon_relation.squeeze(0).tolist()
+
+    class_to_indices = {}
+    for idx, cls in enumerate(weapon_relation):
+        class_to_indices.setdefault(cls, []).append(idx)
+
+    total_overlap = 0
+    valid_positions = 0  # 用于统计非 -1 的位置数量
+
+    for cls, indices in class_to_indices.items():
+        plan_items = [plan[i] for i in indices if plan[i] != -1]
+        human_items = [human_plan[i] for i in indices if human_plan[i] != -1]
+
+        overlap = len(set(plan_items) & set(human_items))
+        total_overlap += overlap
+
+        # 累加该类中所有非 -1 的元素数量（去重后两者中最大长度）
+        valid_positions += max(len(plan_items), len(human_items))
+
+    if valid_positions == 0:
+        return 0.0  # 防止除以 0
+    similarity = total_overlap / valid_positions
+    return similarity
+
+# def test_and_debug():
+#     plan = torch.tensor([[0, 1, -1]], device='cuda:0')
+#     human_plan = torch.tensor([[-1, -1, 1]])
+#     weapon_relation = torch.tensor([[0, 1, 1]])
+#
+#     similarity = similar_test(plan, human_plan, weapon_relation)
+#
+#     print("== Debug 信息 ==")
+#     print(f"plan: {plan}")
+#     print(f"human_plan: {human_plan}")
+#     print(f"weapon_relation: {weapon_relation}")
+#     print(f"相似度: {similarity:.4f}")
+
+
 
