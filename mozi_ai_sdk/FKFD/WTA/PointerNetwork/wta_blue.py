@@ -90,7 +90,7 @@ class ProWTADataset(Dataset):
             # print(self.red_coordinates.shape)  # 应该是 torch.Size([32, 2])
             # print(self.red_coordinates[0])  # 看某一行是否真的含有 \n
         num_red = len(self.red_type)
-        num_blue = len(self.plan)
+        num_blue = len(self.blue_type)
         self.num_target = num_red
         self.num_weapon = num_blue
         # Randint = len(self.vb)

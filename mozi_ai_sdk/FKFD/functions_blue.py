@@ -524,7 +524,6 @@ def extract_targets_attributes(facilities_in):
     positions = []
     damage_state=[]
     strike_ranges = []
-    ammo_types = []
     ammo_type_ids = []
     weapon_capabilities = []
 

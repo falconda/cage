@@ -148,7 +148,7 @@ def validate_1(data_loader, actor, reward_fn, num_weapon, num_target, render_fn=
         with torch.no_grad():
             tour_indices, _ = actor.forward(static, static1, x0)
 
-        tour_indices = wta.trans_to_plan(tour_indices, num_weapon, num_target)
+        tour_indices = wta_blue.trans_to_plan(tour_indices, num_weapon, num_target)
         # Sum the log probabilities for each city in the tour
         # reward = reward_fn(static, tour_indices)
         reward = reward_fn(Pij, Threat, Qjk, V_a, tour_indices, execu_time, weapon_cool)
@@ -186,14 +186,13 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     best_params = None
     best_reward = torch.inf
     rewards1 = []
+    times, losses, rewards, critic_rewards = [], [], [], []
     batchsize = 200
 
     for epoch in range(200):
 
         actor.train()
         critic.train()
-
-        times, losses, rewards, critic_rewards = [], [], [], []
 
         epoch_start = time.time()
         start = epoch_start
@@ -261,6 +260,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
         #     critic_optim.step()
         # losses.append(torch.mean(actor_loss.detach()).item())
         mean_reward = np.mean(reward_list)
+        rewards.append(mean_reward)
         print(f'mean_reward=', mean_reward)
 
         # Save the weights
@@ -361,8 +361,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', default=None)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--task', default='wta')
-    parser.add_argument('--actor_lr', default=5e-4, type=float)
-    parser.add_argument('--critic_lr', default=5e-4, type=float)
+    parser.add_argument('--actor_lr', default=2e-4, type=float)
+    parser.add_argument('--critic_lr', default=2e-4, type=float)
     parser.add_argument('--max_grad_norm', default=2., type=float)
     parser.add_argument('--batch_size', default=20, type=int)
     parser.add_argument('--hidden', dest='hidden_size', default=256, type=int)

@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class WTA_GA:
-    def __init__(self, pij, wj, weapon_num, tij, pop_size=50, generations=200, mutation_rate=0.1):
+    def __init__(self, pij, wj, weapon_num, tij, pop_size=50, generations=200, mutation_rate=0.1, elite_ratio=0.1):
         """
         pij: [n_units x n_targets] 单位对目标的毁伤概率
         wj: [n_targets] 每个目标的价值
@@ -17,6 +17,7 @@ class WTA_GA:
         self.pop_size = pop_size
         self.generations = generations
         self.mutation_rate = mutation_rate
+        self.elite_ratio = elite_ratio
 
     def initialize_population(self):
         """
@@ -96,15 +97,27 @@ class WTA_GA:
         best_individual = None
         best_fitness = -np.inf
 
+        fitness_history = []
+
+        elite_num = max(1, int(self.pop_size * self.elite_ratio))
+
         for gen in range(self.generations):
             fitnesses = [self.fitness(ind) for ind in population]
+            fitness_history.append(fitnesses)
 
+            # 更新最优解
             max_f = max(fitnesses)
             if max_f > best_fitness:
                 best_fitness = max_f
                 best_individual = population[np.argmax(fitnesses)]
 
-            new_population = []
+            # --- 精英保留 ---
+            # 获取当前代中适应度最高的 elite_num 个体
+            elite_indices = np.argsort(fitnesses)[-elite_num:]
+            elites = [population[i] for i in elite_indices]
+
+            # --- 其余通过进化产生 ---
+            new_population = elites.copy()
             while len(new_population) < self.pop_size:
                 parent1, parent2 = self.select_parents(population, fitnesses)
                 child = self.crossover(parent1, parent2)
@@ -113,4 +126,6 @@ class WTA_GA:
 
             population = new_population
 
-        return best_individual, best_fitness
+        return best_individual, best_fitness, fitness_history
+
+
