@@ -103,6 +103,7 @@ class ProWTADataset(Dataset):
         self.size = num_samples
         # 恢复成矩阵形式方便计算
         self.Pij = self.pij.reshape(num_samples, num_blue, num_red)
+        self.weapon_type_index = self.label_unique_rows(self.pij)
         self.Threat = self.vt
         self.target_pij2 = self.qjk.squeeze()
         self.Qjk = self.qjk
@@ -110,6 +111,10 @@ class ProWTADataset(Dataset):
 
     def __len__(self):
         return self.size
+
+    def label_unique_rows(self,pij_tensor):
+        unique_rows, inverse_indices = torch.unique(pij_tensor, dim=0, return_inverse=True)
+        return inverse_indices
 
     def init_WTA_input(self, num_weapon, num_target, num_samples, seed):
         # 目标的威胁值
@@ -196,7 +201,7 @@ class ProWTADataset(Dataset):
         # 直接通过索引返回数据
         return (self.dataset1[idx], [], self.dataset2[idx], self.dataset3[idx],
                 torch.tensor(self.num_weapon).to(device), torch.tensor(self.num_target).to(device),
-                self.Threat, self.Pij,  self.Qjk, self.plan)
+                self.Threat, self.Pij,  self.Qjk,  self.weapon_type_index, self.plan)
 
 
 
@@ -516,3 +521,37 @@ def compute_similarity(human_plan, agent_plan):
 
     # 不相似度
     return 1-similarity
+
+def similar_test(plan, human_plan, weapon_relation):
+    """
+        plan: Tensor shape (1, N), e.g., tensor([[2, 1, 0]])
+        human_plan: Tensor shape (1, N), e.g., tensor([[0, 2, 1]])
+        weapon_relation: Tensor shape (1, N), e.g., tensor([[0, 0, 0]])
+        """
+    plan = plan.squeeze(0).tolist()
+    human_plan = human_plan.squeeze(0).tolist()
+    weapon_relation = weapon_relation.squeeze(0).tolist()
+
+    class_to_indices = {}
+    for idx, cls in enumerate(weapon_relation):
+        class_to_indices.setdefault(cls, []).append(idx)
+
+    total_overlap = 0
+    valid_positions = 0  # 用于统计非 -1 的位置数量
+
+    for cls, indices in class_to_indices.items():
+        plan_items = [plan[i] for i in indices if plan[i] != -1]
+        human_items = [human_plan[i] for i in indices if human_plan[i] != -1]
+
+        overlap = len(set(plan_items) & set(human_items))
+        total_overlap += overlap
+
+        # 累加该类中所有非 -1 的元素数量（去重后两者中最大长度）
+        valid_positions += max(len(plan_items), len(human_items))
+
+    if valid_positions == 0:
+        return 0.0  # 防止除以 0
+    similarity = total_overlap / valid_positions
+
+    # 不相似度
+    return torch.tensor(1 - similarity)

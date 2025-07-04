@@ -187,7 +187,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     best_reward = torch.inf
     rewards1 = []
     times, losses, rewards, critic_rewards = [], [], [], []
-    batchsize = 70
+    batchsize = 50
 
     for epoch in range(200):
 
@@ -203,10 +203,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
             train_data = ProWTADataset(args.train_size)
             train_loader = DataLoader(train_data, batch_size, True, num_workers=0)
             for batch_idx, batch in enumerate(train_loader):
-                static, x0, static1, static2, num_weapon, num_target, threat, pij, qjk, human_plan  = batch
-                # print(f'num_weapon=', num_weapon)
-                # print(f'num_target=', num_target)
-                # print('===============')
+                static, x0, static1, static2, num_weapon, num_target, threat, pij, qjk, weapon_type_index, human_plan  = batch
 
                 static = static.to(device)
                 static1 = static1.to(device)
@@ -227,7 +224,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 # actor_loss_2 = wta.entropy_regularization_loss(tour_logp)
                 # actor_loss_2 = wta_blue.cosine_similarity_loss(human_plan, tour_indices)
                 # actor_loss = actor_loss_1 + 0.01 * actor_loss_2
-                actor_loss_all = wta_blue.soft_hamming_similarity(human_plan, tour_indices, num_target)
+                actor_loss_all = wta_blue.similar_test(human_plan, tour_indices, weapon_type_index)
                 reward_list.append(1 - actor_loss_all.item())
                 advantage = (actor_loss_all - critic_est)
                 actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
@@ -235,36 +232,36 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
                 actor_losses.append(actor_loss)
                 critic_losses.append(critic_loss)
 
-        # actor_loss = torch.stack(actor_losses).mean()
-        # critic_loss = torch.stack(critic_losses).mean()
-        # # 梯度清零、反向传播、优化器更新
-        # actor_optim.zero_grad()
-        # actor_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-        # actor_optim.step()
+        actor_loss = torch.stack(actor_losses).mean()
+        critic_loss = torch.stack(critic_losses).mean()
+        # 梯度清零、反向传播、优化器更新
+        actor_optim.zero_grad()
+        actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+        actor_optim.step()
+
+        critic_optim.zero_grad()
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
+        critic_optim.step()
+
+        # for train_step in range(batchsize):
+        #     actor_loss = actor_losses[train_step]
+        #     critic_loss = critic_losses[train_step]
+        #     # 梯度清零、反向传播、优化器更新
+        #     actor_optim.zero_grad()
+        #     actor_loss.backward()
+        #     del actor_loss  # 释放变量
+        #     torch.cuda.empty_cache()
+        #     torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+        #     actor_optim.step()
         #
-        # critic_optim.zero_grad()
-        # critic_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
-        # critic_optim.step()
-
-        for train_step in range(batchsize):
-            actor_loss = actor_losses[train_step]
-            critic_loss = critic_losses[train_step]
-            # 梯度清零、反向传播、优化器更新
-            actor_optim.zero_grad()
-            actor_loss.backward()
-            del actor_loss  # 释放变量
-            torch.cuda.empty_cache()
-            torch.nn.utils.clip_grad_norm_(actor.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-            actor_optim.step()
-
-            critic_optim.zero_grad()
-            critic_loss.backward()
-            del critic_loss  # 释放变量
-            torch.cuda.empty_cache()
-            torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
-            critic_optim.step()
+        #     critic_optim.zero_grad()
+        #     critic_loss.backward()
+        #     del critic_loss  # 释放变量
+        #     torch.cuda.empty_cache()
+        #     torch.nn.utils.clip_grad_norm_(critic.parameters(), max_grad_norm)
+        #     critic_optim.step()
         # losses.append(torch.mean(actor_loss.detach()).item())
         mean_reward = np.mean(reward_list)
         rewards.append(mean_reward)
