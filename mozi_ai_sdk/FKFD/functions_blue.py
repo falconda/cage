@@ -705,7 +705,7 @@ def apply_assignment_with_limits(plan, tij, weapon_num):
     return actual
 
 platform_weapon_capability = {
-    'GBU-38(V)1/B联合直接攻击炸弹': 136/87,
+    'GBU-38(V)1/B联合直接攻击炸弹': 87/136,
     'AGM-65G2型“小牛”空地战术导弹': 136/136,
 }
 
@@ -713,8 +713,9 @@ target_defense_value = {
     'HQ-17': 0.5,
     'HQ-16B': 0.5,
     'HQ-9A': 0.5,
+    'S-400E': 0.5,
     '雷达': 0.5,
-    '基地': 0.3
+    '基地': 0.8
 
 }
 
@@ -730,6 +731,6 @@ def build_tij_matrix(acs_assign_weapon, targets_in_info):
         for j, (target, guid_t, name_t, lat, lon) in enumerate(targets_in_info):
             name_type = extract_type_from_name(name_t)
             defense = target_defense_value.get(name_type, 1)
-            tij[i][j] = math.ceil(defense /(2* attack_power))
+            tij[i][j] = math.ceil( 2*defense / attack_power )
 
-    return tij
+    return tij.tolist()

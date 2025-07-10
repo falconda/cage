@@ -83,9 +83,10 @@ class ProWTADataset(Dataset):
 
             self.vt = parse_tensor_from_string(row['红方威胁度'])
             self.pij = parse_tensor_from_string(row['打击概率pij'])
-            self.fij = parse_tensor_from_string(row['可行性矩阵'])
-            self.plan = process_plan(parse_tensor_from_string(row['打击方案']))
-            self.qjk = parse_tensor_from_string(row['损伤概率qjk'])
+            self.ava_weapon = parse_tensor_from_string(row['可分配数量'])
+            self.tij = parse_tensor_from_string(row['数量矩阵tij'])
+            self.plan =  parse_tensor_from_string(row['打击方案'])
+            self.mat = parse_tensor_from_string(row['分配矩阵'])
 
             # print(self.red_coordinates.shape)  # 应该是 torch.Size([32, 2])
             # print(self.red_coordinates[0])  # 看某一行是否真的含有 \n
@@ -103,18 +104,13 @@ class ProWTADataset(Dataset):
         self.size = num_samples
         # 恢复成矩阵形式方便计算
         self.Pij = self.pij.reshape(num_samples, num_blue, num_red)
-        self.weapon_type_index = self.label_unique_rows(self.pij)
         self.Threat = self.vt
-        self.target_pij2 = self.qjk.squeeze()
-        self.Qjk = self.qjk
+        self.Tij = self.tij
+        self.A_weapon = self.ava_weapon
 
 
     def __len__(self):
         return self.size
-
-    def label_unique_rows(self,pij_tensor):
-        unique_rows, inverse_indices = torch.unique(pij_tensor, dim=0, return_inverse=True)
-        return inverse_indices
 
     def init_WTA_input(self, num_weapon, num_target, num_samples, seed):
         # 目标的威胁值
@@ -123,13 +119,13 @@ class ProWTADataset(Dataset):
         self.target_threat1 = repeated_vt_arr.unsqueeze(0).unsqueeze(0)
         pij1_arr = self.pij.view(-1)
         self.pij1 = pij1_arr.unsqueeze(0).unsqueeze(0)
-        fij1_arr = self.fij.view(-1)
-        self.fij1 = fij1_arr.unsqueeze(0).unsqueeze(0)
-        qjk1_arr = self.qjk.view(-1)
-        self.qjk1 = qjk1_arr.unsqueeze(0).unsqueeze(0)
+        tij1_arr = self.tij.view(-1)
+        self.tij1 = tij1_arr.unsqueeze(0).unsqueeze(0)
+        ava_weapon1 = self.ava_weapon.repeat_interleave(num_target)
+        self.ava_weapon1 = ava_weapon1.unsqueeze(0).unsqueeze(0)
 
         # WTA相关信息输入
-        self.dataset1 = torch.cat((self.target_threat1, self.pij1, self.fij1, self.qjk1), dim=1)
+        self.input1 = torch.cat((self.target_threat1, self.pij1, self.tij1, self.ava_weapon1), dim=1)
 
     def init_blue_input(self, num_red):
         # 蓝方信息处理
@@ -154,7 +150,7 @@ class ProWTADataset(Dataset):
         repeated_blue_latitude = latitude.unsqueeze(1).repeat(1,num_red)
         self.blue_latitude1 = repeated_blue_latitude.view(-1).unsqueeze(0).unsqueeze(0)
         # 蓝方信息输入
-        self.dataset2 = torch.cat(
+        self.input2 = torch.cat(
             (self.blue_type1, self.blue_speed1, self.blue_azimuth1, self.blue_range1, self.blue_longitude1,
              self.blue_latitude1), dim=1)
 
@@ -190,7 +186,7 @@ class ProWTADataset(Dataset):
         repeated_red_weight = self.red_weight_wta.repeat(num_blue,1)
         self.red_weight1 = repeated_red_weight.view(-1).unsqueeze(0).unsqueeze(0)
         # 红方信息输入
-        self.dataset3 = torch.cat(
+        self.input3 = torch.cat(
             (self.red_type1, self.red_longitude1, self.red_latitude1, self.red_damage1, self.red_range1,
              self.red_ammunition1, self.red_weight1), dim=1)
 
@@ -199,9 +195,9 @@ class ProWTADataset(Dataset):
     def __getitem__(self, idx):
         # (static, dynamic, start_loc)
         # 直接通过索引返回数据
-        return (self.dataset1[idx], [], self.dataset2[idx], self.dataset3[idx],
+        return (self.input1[idx], [], self.input2[idx], self.input3[idx],
                 torch.tensor(self.num_weapon).to(device), torch.tensor(self.num_target).to(device),
-                self.Threat, self.Pij,  self.Qjk,  self.weapon_type_index, self.plan)
+                self.Threat, self.Pij,  self.A_weapon, self.Tij, self.plan)
 
 
 

@@ -187,7 +187,7 @@ def train(actor, critic, task, num_nodes, train_data, valid_data, reward_fn,
     best_reward = torch.inf
     rewards1 = []
     times, losses, rewards, critic_rewards = [], [], [], []
-    batchsize = 50
+    batchsize = 200
 
     for epoch in range(200):
 
