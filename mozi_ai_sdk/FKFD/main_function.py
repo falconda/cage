@@ -20,11 +20,14 @@ from mozi_ai_sdk.FKFD.WNN import WNN_TA
 
 from mozi_ai_sdk.FKFD.env.env import Environment
 from mozi_ai_sdk.FKFD.env import etc
-from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, get_current_num, weapon_info, get_class_num, transpose
+from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, \
+    get_current_num, weapon_info, get_class_num, transpose
 from mozi_ai_sdk.FKFD.functions_blue import (monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets,
-                                             extract_targets_attributes, extract_target_encoded_attributes, apply_assignment_with_limits, get_red_damage)
+                                             extract_targets_attributes, extract_target_encoded_attributes, apply_assignment_with_limits, build_tij_matrix, get_red_damage)
 from mozi_ai_sdk.FKFD.dataProcess import processWtaData
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
+from mozi_ai_sdk.FKFD.model_red import PN_WTA_red,reward_line
+from mozi_ai_sdk.FKFD.model_blue import PN_WTA_blue
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--avail_ip_port", type=str, default='127.0.0.1:6060')
@@ -33,7 +36,7 @@ parser.add_argument("--side_name", type=str, default='蓝方')
 parser.add_argument("--agent_key_event_file", type=str, default=None)
 
 #  设置墨子安装目录下bin目录为MOZIPATH，程序会自动启动墨子
-os.environ['MOZIPATH'] = 'C:\\Program Files (x86)\\Mozi\\Mozi\\MoziServer\\bin'
+os.environ['MOZIPATH'] = 'D:\\Mozi\\\MoziServer\\bin'
 print(os.environ['MOZIPATH'])
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -42,505 +45,8 @@ current_dir = os.path.dirname(__file__)
 # 拼接路径，指向当前文件夹下的 "model" 文件夹
 WTAModelPath = os.path.join(current_dir, "model")
 device = torch.device('cpu')
-# 指针网络相关参数
-STATIC_SIZE = 7  # (x, y)
-STATIC1_SIZE = 6
-STATIC2_SIZE = 7
-max_grad_norm = 2
-actor_lr = 5e-4
-critic_lr = 5e-4
-data = []
-file_number = 0
 
-class StateCritic(nn.Module):
-    def __init__(self, static_size, static1_size, static2_size, hidden_size, num_weapon, num_target):
-        super(StateCritic, self).__init__()
-
-        self.static_encoder = Encoder(static_size, hidden_size)
-        self.static1_encoder = Encoder(static1_size, hidden_size)
-        self.static2_encoder = Encoder(static2_size, hidden_size)
-
-        # Define the encoder & decoder models
-        self.fc1 = nn.Conv1d(hidden_size, num_weapon * num_target, kernel_size=1)
-        self.fc2 = nn.Conv1d(num_weapon * num_target, min(num_target, num_weapon), kernel_size=1)
-        self.fc3 = nn.Conv1d(min(num_target, num_weapon), 1, kernel_size=1)
-
-        for p in self.parameters():
-            if len(p.shape) > 1:
-                nn.init.xavier_uniform_(p)
-
-    def forward(self, static):
-
-        # Use the probabilities of visiting each
-        # static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
-        static = static.float()
-        static_hidden = self.static_encoder(static)
-        output = F.relu(self.fc1(static_hidden))
-        output = F.relu(self.fc2(output))
-        output = self.fc3(output).sum(dim=2)
-        return output
-
-class PN_WTA(object):
-    def __init__(self, num_weapon, num_target, Wei, Pij, Fij, Qjk, V_a, step):
-        self.num_weapon = num_weapon
-        self.num_target = num_target
-        self.Threat = Wei[0]
-        self.Pij = Pij
-        self.Fij = Fij
-        self.Qjk = Qjk
-        self.V_a = V_a[0]
-        self.data_line = []
-
-        global actor_model
-        actor_model = DRL4TSP(STATIC_SIZE,
-                              STATIC1_SIZE,
-                              STATIC2_SIZE,
-                              256,
-                              None,
-                              wta_update_mask,
-                              1,
-                              0.1).to(device)
-        global critic_model
-        critic_model = StateCritic(STATIC_SIZE, STATIC1_SIZE, STATIC2_SIZE, 256, 20, 20).to(device)
-
-        if step == 0:
-            # 模型参数加载
-            weight = torch.load(os.path.join(WTAModelPath, "actor.pt"), map_location='cpu')
-            actor_model.load_state_dict(weight)
-            actor_model = actor_model.to(device)
-        else:
-            NEWModelPath = os.path.join(current_dir, "pointer_model_new")
-            checkpoint_actor_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "actor.pt")
-            weight = torch.load(checkpoint_actor_path, map_location='cpu')
-            actor_model.load_state_dict(weight)
-            actor_model = actor_model.to(device)
-
-            checkpoint_critic_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "critic.pt")
-            weight = torch.load(checkpoint_critic_path, map_location='cpu')
-            critic_model.load_state_dict(weight)
-
-
-    def trans_model(self, weapon, target, threat, pof, pod, value, model):
-        # 提取WTA数据
-        self.vt = torch.tensor(self.Threat)
-        self.pij = torch.tensor(self.Pij)
-        self.fij = torch.tensor(self.Fij)
-        self.qjk = torch.tensor(self.Qjk)
-        self.vb = torch.tensor(self.V_a)
-        self.init_WTA_input()
-        static = self.dataset1
-        tour_indices, tour_logp = actor_model(self.num_weapon, self.num_target, static)
-        plan = trans_to_plan(tour_indices, self.num_weapon, self.num_target)
-        critic_est = critic_model(static).view(-1)
-
-        return plan, tour_logp, critic_est
-
-    def init_WTA_input(self):
-        num_samples = 1
-        # WTA信息处理
-        Randint = len(self.vb)  # 基地的数量
-        positions = []
-        # 遍历 self.qjk 中的每个张量
-        for tensor in self.qjk:
-            # 使用 nonzero() 找到不为零的元素的位置
-            nonzero_indices = torch.nonzero(tensor)
-            # 选择每行的第一个非零元素的索引
-            if nonzero_indices.size(0) > 0:
-                # 获取第一个非零元素的位置
-                first_nonzero_pos = nonzero_indices[0]
-                positions.append(first_nonzero_pos)
-        # 将位置合并为一个 (1, 2) 形状的张量
-        self.T_to_A = torch.stack(positions).view(1, -1)
-        # 基地的价值的标准化
-        self.norm_value = self.vb / 100
-        # 目标对应基地的频率， 基地的价值占比
-        self.f, self.base = trans_norm(self.T_to_A, Randint, self.norm_value)
-        ##################
-        self.f1 = self.f.reshape(num_samples, 1, self.num_target).repeat(1, 1, self.num_weapon)
-        self.base1 = self.base.reshape(num_samples, 1, self.num_target).repeat(1, 1, self.num_weapon)
-        #####################
-        # 提取每一行的不为零的元素
-        target_pij = []
-        for row in self.qjk:
-            # 获取该行中不为零的元素
-            non_zero_elements = row[row != 0]
-            target_pij.append(non_zero_elements[0])
-        # 将提取的非零元素合并为一个张量
-        self.target_pij = torch.stack(target_pij).unsqueeze(0).unsqueeze(0)
-        # 目标打击基地的概率
-        self.target_pij1 = self.target_pij.repeat(1, 1, self.num_weapon)
-        reshaped_pij = self.pij.view(-1)  # 这将把 (32, 2) 张量转换为一个 64 元素的一维张量
-        self.weapon_pij = reshaped_pij.unsqueeze(0).unsqueeze(0)
-        reshaped_fij = self.fij.view(-1)  # 这将把 (32, 2) 张量转换为一个 64 元素的一维张量
-        self.weapon_fij = reshaped_fij.unsqueeze(0).unsqueeze(0)
-        # 武器打击目标的概率
-        # 目标的威胁值
-        repeated_vt = self.vt.repeat(self.num_weapon)
-        self.target_threat1 = repeated_vt.unsqueeze(0).unsqueeze(0)
-        # WTA相关信息输入
-        self.dataset1 = torch.cat((self.f1, self.base1, self.target_pij1, self.weapon_pij, self.weapon_fij,
-                                   self.target_threat1, self.weapon_pij), dim=1)
-
-    def run(self):
-        actor_model.train()
-        critic_model.train()
-        plan, tour_logp, critic_est = self.trans_model(self.num_weapon, self.num_target, self.Threat, self.Pij, self.Qjk, self.V_a,
-                                actor_model)
-        result = plan.tolist()[0]
-        fitnesss = F7(result,self.num_weapon,self.num_target,len(self.V_a),self.Threat,self.Pij,self.Fij,self.Qjk,self.V_a)
-        self.data_line.append(fitnesss)
-        self.data_line.append(tour_logp)
-        self.data_line.append(critic_est)
-        data.append(self.data_line)
-
-        return result
-
-def trans_norm(tensor_input, num_base, base_value):
-    """
-    input:
-    tensor_input: n数量个目标打击基地的选择
-    num_base: 基地数量
-    base_value:基地价值的标准化
-    output:
-    random_norm:标准化基地选择，利用出现频率代替
-    random_norm_base:目标打击基地价值的标准化
-
-    """
-    B = []
-    C = []
-    # num_sample
-    row = int(tensor_input.size(0))
-    # target
-    column = int(tensor_input.size(1))
-    random_norm = torch.zeros((row, column))
-    random_norm_base = torch.zeros((row, column))
-    for i in range(row):
-        for j in range(num_base):
-            count = torch.sum(torch.eq(tensor_input[i, :], j).int())
-            B.append(int(count))
-        C.append(B)
-        B = []
-    for i in range(row):
-        for j in range(column):
-            index = int(tensor_input[i][j])
-            random_norm[i][j] = 1 / C[i][index]
-            random_norm_base[i][j] = base_value[index]
-    return random_norm, random_norm_base
-
-def trans_to_plan(index, num_weapon, num_target):
-    batch_size = index.size(0)
-
-    # 新建一个固定形状的 tensor：全部初始化为 -1，代表未分配
-    index_sort = torch.full((batch_size, num_weapon), -1, dtype=torch.long, device=index.device)
-
-    for row, v in enumerate(index):
-        temp_sort, _ = torch.sort(index[row])
-
-        # 计算武器编号和目标编号
-        weapon_index = torch.div(temp_sort, num_target, rounding_mode='floor').tolist()
-        target_index = torch.remainder(temp_sort, num_target).tolist()
-
-        # 初始化分配方案
-        plan = [-1] * num_weapon
-        for k, w in zip(weapon_index, target_index):
-            if 0 <= k < num_weapon:
-                plan[k] = w  # 第 k 个武器打第 w 个目标
-
-        # 替换当前行
-        index_sort[row] = torch.tensor(plan, device=index.device)
-
-    return index_sort
-
-class Encoder(nn.Module):
-    """Encodes the static & dynamic states using 1d Convolution."""
-
-    def __init__(self, input_size, hidden_size):
-        super(Encoder, self).__init__()
-        self.conv = nn.Conv1d(input_size, hidden_size, kernel_size=1)
-
-    def forward(self, input):
-        output = self.conv(input)
-        return output  # (batch, hidden_size, seq_len)
-
-class Attention(nn.Module):
-    """Calculates attention over the input nodes given the current state."""
-
-    def __init__(self, hidden_size):
-        super(Attention, self).__init__()
-
-        # W processes features from static decoder elements
-        self.v = nn.Parameter(torch.zeros((1, 1, hidden_size),
-                                          device=device, requires_grad=True))
-
-        self.W = nn.Parameter(torch.zeros((1, hidden_size, 2 * hidden_size),
-                                          device=device, requires_grad=True))
-
-    def forward(self, static_hidden, decoder_hidden):
-        batch_size, hidden_size, _ = static_hidden.size()
-        hidden = decoder_hidden.unsqueeze(2).expand_as(static_hidden)  # 在第3维度与static_hidden保持一致
-        hidden = torch.cat((static_hidden, hidden), 1)  # 第二个维度拼接
-        # Broadcast some dimensions so we can do batch-matrix-multiply
-        v = self.v.expand(batch_size, 1, hidden_size)
-        W = self.W.expand(batch_size, hidden_size, -1)
-
-        attns = torch.bmm(v, torch.tanh(torch.bmm(W, hidden)))
-        attns = F.softmax(attns, dim=2)  # (batch, seq_len)# 第三个维度概率归一化
-        return attns
-
-class Pointer(nn.Module):
-    """Calculates the next state given the previous state and input embeddings."""
-
-    def __init__(self, hidden_size, num_layers=1, dropout=0.2):
-        super(Pointer, self).__init__()
-
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        # Used to calculate probability of selecting next state
-        self.v = nn.Parameter(torch.zeros((1, 1, hidden_size),
-                                          device=device, requires_grad=True))
-
-        self.W = nn.Parameter(torch.zeros((1, hidden_size, 2 * hidden_size),
-                                          device=device, requires_grad=True))
-
-        # Used to compute a representation of the current decoder output
-        self.gru = nn.GRU(hidden_size, hidden_size, num_layers,
-                          batch_first=True,
-                          dropout=dropout if num_layers > 1 else 0)
-        self.encoder_attn = Attention(hidden_size)
-
-        self.drop_rnn = nn.Dropout(p=dropout)
-        self.drop_hh = nn.Dropout(p=dropout)
-
-    def forward(self, static_hidden, decoder_hidden, last_hh):
-        # static_hidden.size() [256, 128, 20]
-        # decoder_hidden.size() [256, 128, 1]
-
-        rnn_out, last_hh = self.gru(decoder_hidden.transpose(2, 1), last_hh)  # [256,1,128]
-        rnn_out = rnn_out.squeeze(1)  # 只移除大小为1的维度[256,128]
-        # Always apply dropout on the RNN output
-        rnn_out = self.drop_rnn(rnn_out)
-        if self.num_layers == 1:
-            # If > 1 layer dropout is already applied
-            last_hh = self.drop_hh(last_hh)
-
-        # Given a summary of the output, find an input context
-        enc_attn = self.encoder_attn(static_hidden, rnn_out)
-        context = enc_attn.bmm(static_hidden.permute(0, 2, 1))  # (B, 1, num_feats) 2维3维置换
-
-        # Calculate the next output using Batch-matrix-multiply ops
-        context = context.transpose(1, 2).expand_as(static_hidden)
-        energy = torch.cat((static_hidden, context), dim=1)  # (B, num_feats, seq_len)
-
-        v = self.v.expand(static_hidden.size(0), -1, -1)
-        W = self.W.expand(static_hidden.size(0), -1, -1)
-        probs = torch.bmm(v, torch.tanh(torch.bmm(W, energy))).squeeze(1)
-
-        return probs, last_hh
-
-class DRL4TSP(nn.Module):
-    def __init__(self, static_size, static1_size, static2_size, hidden_size,
-                 update_fn=None, mask_fn=None, num_layers=1, dropout=0.1):
-        super(DRL4TSP, self).__init__()
-
-        self.static_size = static_size
-        self.static1_size = static1_size
-        self.update_fn = update_fn
-        self.mask_fn = mask_fn
-        # Define the encoder & decoder models
-        self.static_encoder = Encoder(static_size, hidden_size)
-        self.static1_encoder = Encoder(static1_size, hidden_size)
-        self.static2_encoder = Encoder(static2_size, hidden_size)
-        self.decoder = Encoder(static_size, hidden_size)
-        self.decoder1 = Encoder(static1_size, hidden_size)
-        self.pointer = Pointer(hidden_size, num_layers, dropout)
-
-        for p in self.parameters():
-            if len(p.shape) > 1:
-                nn.init.xavier_uniform_(p)
-
-        # Used as a proxy initial state in the decoder when not specified
-        self.x0 = torch.zeros((1, static_size, 1), requires_grad=True, device=device)
-        self.x1 = torch.zeros((1, static1_size, 1), requires_grad=True, device=device)
-
-    def forward(self, num_weapon, num_target, static, decoder_input=None, last_hh=None):
-        """
-        Parameters
-        ----------
-        static: Array of size (batch_size, feats, num_cities)
-            Defines the elements to consider as static. For the TSP, this could be
-            things like the (x, y) coordinates, which won't change
-        decoder_input: Array of size (batch_size, num_feats)
-            Defines the outputs for the decoder. Currently, we just use the
-            static elements (e.g. (x, y) coordinates), but this can technically
-            be other things as well
-        last_hh: Array of size (batch_size, num_hidden)
-            Defines the last hidden state for the RNN
-        """
-        self.num_target = num_target
-        self.num_weapon = num_weapon
-
-        batch_size, input_size, sequence_size = static.size()
-        decoder1_input = None
-        if decoder_input is None:
-            decoder_input = self.x0.expand(batch_size, self.static_size, 1)
-            decoder1_input = self.x1.expand(batch_size, self.static1_size, 1)
-        # Always use a mask - if no function is provided, we don't update it
-        mask = torch.ones(batch_size, sequence_size, device=device)  # 初始化 mask 为全 1
-
-        # Structures for holding the output sequences
-        tour_idx, tour_logp = [], []
-        # max_steps = sequence_size if self.mask_fn is None else 1000
-        max_steps = min(self.num_weapon, self.num_target)
-        # Static elements only need to be processed once, and can be used across
-        # all 'pointing' iterations. When / if the dynamic elements change,
-        # their representations will need to get calculated again.
-        # static_hidden = self.static_encoder(static) + self.static1_encoder(static1) + self.static2_encoder(static2)
-        static = static.float()
-        static_hidden = self.static_encoder(static)
-
-        for i in range(max_steps):
-            if not mask.byte().any():
-                break
-
-            # ... but compute a hidden rep for each element added to sequence
-            # decoder_hidden = self.decoder(decoder_input) + self.decoder1(decoder1_input)
-            decoder_hidden = self.decoder(decoder_input)
-            probs, last_hh = self.pointer(static_hidden, decoder_hidden, last_hh)
-            probs = F.softmax(probs + mask.log(), dim=1)  # [256,20]
-
-            # 避免 NaN 和全 0 行
-            probs = torch.nan_to_num(probs, nan=1e-6)  # 替换 NaN
-            probs[probs.sum(dim=1) == 0] = 1 / probs.size(1)  # 处理全 0 行，设为均匀分布
-            # When training, sample the next step according to its probability.
-            # During testing, we can take the greedy approach and choose highest
-            if self.training:
-                m = torch.distributions.Categorical(probs)
-                # Sometimes an issue with Categorical & sampling on GPU; See:
-                # https://github.com/pemami4911/neural-combinatorial-rl-pytorch/issues/5
-                ptr = m.sample()
-                while not torch.gather(mask, 1, ptr.data.unsqueeze(1)).byte().all():
-                    ptr = m.sample()
-                logp = m.log_prob(ptr)
-            else:
-                prob, ptr = torch.max(probs, 1)  # Greedy
-                logp = prob.log()
-
-            # And update the mask so we don't re-visit if we don't need to
-            if self.mask_fn is not None:
-                mask = self.mask_fn(mask, ptr.data, self.num_weapon, self.num_target).detach()
-            tour_logp.append(logp.unsqueeze(1))
-            tour_idx.append(ptr.data.unsqueeze(1))
-            # 从索引找到坐标
-            decoder_input = torch.gather(static, 2,
-                                         ptr.view(-1, 1, 1)
-                                         .expand(-1, input_size, 1)).detach()
-        tour_idx = torch.cat(tour_idx, dim=1)  # (batch_size, seq_len)
-        tour_logp = torch.cat(tour_logp, dim=1)  # (batch_size, seq_len)
-
-        return tour_idx, tour_logp
-
-def train_pointer(reward1, reward2):
-    actor_optim = optim.Adam(actor_model.parameters(), lr=actor_lr)
-    critic_optim = optim.Adam(critic_model.parameters(), lr=critic_lr)
-    step = 0
-
-    save_dir = os.path.join(os.getcwd(), 'pointer_model_new')
-    checkpoint_dir = os.path.join(save_dir, 'checkpoints')
-    if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-
-    for data_line in data:
-        step = step+1
-        print(step + 1)
-        fitnesss = data_line[0]
-        tour_logp = data_line[1]
-        critic_est = data_line[2]
-        reward = fitnesss + 0.5 * (1 - reward1 + reward2)
-        advantage = (reward - critic_est)
-        actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
-        critic_loss = torch.mean(advantage ** 2)
-        # 梯度清零、反向传播、优化器更新
-        actor_optim.zero_grad()
-        actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(actor_model.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-        actor_optim.step()
-
-        critic_optim.zero_grad()
-        critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(critic_model.parameters(), max_grad_norm)
-        critic_optim.step()
-    # Save the weights
-    global file_number
-    epoch_dir = os.path.join(checkpoint_dir, '%s' % file_number)
-    file_number += 1
-    if not os.path.exists(epoch_dir):
-        os.makedirs(epoch_dir)
-
-    save_path = os.path.join(epoch_dir, 'actor.pt')
-    torch.save(actor_model.state_dict(), save_path)
-    save_path = os.path.join(epoch_dir, 'critic.pt')
-    torch.save(critic_model.state_dict(), save_path)
-    print('finish!')
-
-def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
-    weapon_index = torch.div(chosen_idx, num_target, rounding_mode='floor')
-    start_a = torch.mul(weapon_index, num_target)
-    end_a = torch.mul(torch.add(weapon_index, 1), num_target)
-    weapon_array = []
-    for i in range(chosen_idx.size()[0]):
-        weapon_array.append(list(range(int(start_a[i]), int(end_a[i]), 1)))
-    weapon_mask = torch.tensor(weapon_array).to(device)
-    target_array = []
-    target_index = torch.remainder(chosen_idx, num_target)
-    end_c = torch.add(target_index, num_weapon * num_target)
-    for i in range(chosen_idx.size()[0]):
-        target_array.append(list(range(target_index[i], end_c[i], num_target)))
-    target_mask = torch.tensor(target_array).to(device)
-    mask.scatter_(1, weapon_mask, 0)
-    mask.scatter_(1, target_mask, 0)
-    return mask
-
-def F7(x,num_w,num_t,num_b,vj,pij,fij,qij,wb):
-    x0 = [-1] * num_w
-    for i in range(num_w):
-        x0[i] = x[i]
-    J = 0
-    target_used = [0] * 100
-    all_bv = 0
-    vj_total = 0
-    remain_bv = [0] * 100
-    base_remain = 0
-    for b in range(num_b):
-        remain_bv[b] = wb[b]
-        all_bv += wb[b]
-    for i in range(num_w):
-        if x0[i] != -1:
-            target = int(x0[i])
-            target_used[target] = 1
-            for b in range(num_b):
-                remain_bv[b] -= (1 / num_b) * wb[b] * qij[target][b] * (1 - pij[i][target])
-                if remain_bv[b] < 0:
-                    remain_bv[b] = 0
-    for j in range(num_t):
-        vj_total += vj[j]
-        if target_used[j] == 0:  # 若该目标没有被选择
-            for b in range(num_b):
-                remain_bv[b] -= (1 / num_b) * wb[b] * qij[j][b]
-                if remain_bv[b] < 0:
-                    remain_bv[b] = 0
-    for b in range(num_b):
-        base_remain += remain_bv[b]
-    J2 = base_remain / all_bv  # 基地保留比例
-    for i in range(num_w):
-        if x0[i] != -1:
-            t = int(x0[i])
-            J = J + pij[i][t] * vj[t]
-    J1 = J / vj_total  # 目标威胁消除比例
-
-    return J1 * 0.5 + J2 * 0.5
-
-def run(env, train_step):
+def run(env, blue_step, red_step):
     # 启动墨子服务器，连接墨子服务器，获取初始态势数据
     env.start()
     # 加载想定，初始化推演方
@@ -611,10 +117,12 @@ def run(env, train_step):
                'S111': S111, 'S222': S222, 'S333': S333, 'S444': S444, 'M111': M111, 'M222': M222, 'L3': L3,
                'SL': SL, 'S300_1': S300_1, 'S300_2': S300_2}
     # 机动性系数（a）：F-16DJ 为4.9，代表非常机动；而导弹类如 炸弹, 高超声速导弹为0，代表不可机动；
-    target_a = {'干扰机': 1, '预警机': 1, '女武神无人机': 4, '诡骗丽影无人战斗机':4, 'F-16DJ战斗机': 4.9, 'B-1B轰炸机': 1, 'B-52H轰炸机': 1.5, 'RQ-180': 1,
+    target_a = {'干扰机': 1, '预警机': 1, '女武神无人机': 4, '诡骗丽影无人战斗机': 4, 'F-16DJ战斗机': 4.9, 'B-1B轰炸机': 1, 'B-52H轰炸机': 1.5,
+                'RQ-180': 1,
                 'F-15E战斗轰炸机': 4.5, '超级眼镜蛇直升机': 2, 'F-16CM战斗机': 4.9, '枪骑兵轰炸机': 2, '巡飞弹': 1, '高超声速导弹': 0, '导弹': 0,
                 '炸弹': 0, '侦察机': 1}
-    target_name = ['干扰机', '预警机', '女武神无人机','诡骗丽影无人战斗机', 'F-16DJ战斗机', 'B-1B轰炸机', 'B-52H轰炸机', 'RQ-180', 'F-15E战斗轰炸机', '超级眼镜蛇直升机',
+    target_name = ['干扰机', '预警机', '女武神无人机', '诡骗丽影无人战斗机', 'F-16DJ战斗机', 'B-1B轰炸机', 'B-52H轰炸机', 'RQ-180', 'F-15E战斗轰炸机',
+                   '超级眼镜蛇直升机',
                    'F-16CM战斗机', '枪骑兵轰炸机', '巡飞弹', '高超声速导弹', '导弹', '炸弹', '侦察机']
     special_target = ['高超声速导弹']
     special_target_L = ['超级眼镜蛇直升机', 'F-16DJ', '高超声速导弹']
@@ -841,21 +349,24 @@ def run(env, train_step):
     all_attack_records = []  # 存放每一轮的 attack_records 列表
     all_attack_logs = []  # 存放每一轮的 attack_log 列表
     all_damage_logs = []  # # 存放每一轮的 damage_log 列表
-    Al = PN_WTA
+    data_train_blue = []    # 存放每一次推演的数据，包括方案，适应度，logp，critic_est
+    algorithm_red = PN_WTA_red(step=red_step)
     red_facilities_in = red_side.get_facilities().values()
     damage_list_0 = get_red_damage(red_facilities_in)
+    algorithm_blue = PN_WTA_blue(step=blue_step)
 
     while True:
         # scenario.set_cur_side_and_dir_view("蓝方", "false")
-        step_count +=1   # 更新一步:每一步经过时长有推演倍速决定
+        step_count += 1  # 更新一步:每一步经过时长有推演倍速决定
         logging.info(f'step_count:{step_count}')
         blue_side.static_update()
         red_side.static_update()
 
-        def blue_move():
+        def blue_move(blue_side, red_side):
             facilities = red_side.get_facilities()
             facilities_info = [
-                [facility, facility.strGuid, facility.strName, facility.dLatitude, facility.dLongitude, facility.strDamageState]
+                [facility, facility.strGuid, facility.strName, facility.dLatitude, facility.dLongitude,
+                 facility.strDamageState]
                 for facility in facilities.values()
             ]
             # logging.info(f'facilities_info:{((facilities_info))}')
@@ -875,6 +386,7 @@ def run(env, train_step):
             targets_info = [
                 [target, target.strGuid, target.strName, target.dLatitude, target.dLongitude]
                 for target in contacts_dic_blue.values()
+                if "防空导弹" not in target.strName
             ]
             # logging.info(f'targets_info:{targets_info}')
 
@@ -926,81 +438,117 @@ def run(env, train_step):
             for item in acs_assign_weapon:
                 if item[4] == 0:  # count 在索引 4
                     item[0].return_to_base()  # ac 对象
-                    logging.info(f'飞机{item[2]}没有武器{item[3]}返回基地')
+                    # logging.info(f'飞机{item[2]}没有武器{item[3]}返回基地')
 
             # 攻击逻辑：生成配对并打击，只执行一次
             # 提前分配，然后是导弹数都变化后再分配
             # 15倍速，完成第一轮打击
             trigger = 220
-
+            data_train_solo = None  # 默认没有数据
             # 如何对结果进行结算？定时实现
             '''
-            先结算要比生成前一轮
+            先结算要比生成前一轮  
             '''
             if step_count == 1 or step_count > trigger and (step_count - trigger) % 30 == 0:
                 #  配对产生：设计算法和模型
-                if len(weapon_num) > 0 and  len(targets_in_info) > 0:
+                if len(weapon_num) > 0 and len(targets_in_info) > 0:
                     pij = pij_generate(targets_in_info, acs_assign_weapon)
                     value = evaluate_targets(targets_in_info, facilities_in_info)
                     # 具体使用多少数量的武器： tij决定
-                    tij = np.full((len(acs_assign_weapon), len(targets_in_info)), 2)
+                    # tij = np.full((len(acs_assign_weapon), len(targets_in_info)), 2)
+                    tij = build_tij_matrix(acs_assign_weapon, targets_in_info)
+                    # logging.info(f'tij长度：{tij}')
                     # logging.info(f'价值评估{value}')
                     # 初始化算法
-                    solver = WTA_GA(pij, value, weapon_num, tij, pop_size=30, generations=100)
-                    pair_plan, b_fitness = solver.evolve()
-                    plan = apply_assignment_with_limits(pair_plan, tij, weapon_num)
+                    # algorithm_blue = PN_WTA_blue(pij, value, weapon_num, tij, train_step)
+                    # pair_mat, pair_plan, data_train_solo = algorithm_blue.run()
+
+                    pair_mat, result, data_train_solo = algorithm_blue.run(pij, value, weapon_num, tij)
+                    # 保存网络输出
+                    plan = apply_assignment_with_limits(pair_mat, tij, weapon_num)
                     # logging.info(f'产生plan{plan}, 对应适应度{b_fitness}')
 
                     # 数据库构建
                     # 蓝方对红方的
-                    if step_count != 1:
-                        # v1
-                        data_blue = extract_targets_attributes(facilities_in)
-                        # v2
-                        # data_blue = extract_target_encoded_attributes(facilities_in)
-                        # 蓝方的
-                        data = []
-                        for acs in acs_assign_weapon:
-                            ac = acs[0]
-                            data_ac = processWtaData(ac)
-                            data.append(data_ac)
-                        data_red = transpose(data)
-                        # logging.info(f'数据库蓝方：{data_blue}')
-                        # logging.info(f'数据库红方：{data_red}')
-                        qij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
-                        fij = [[1 for _ in range(len(targets_in_info))] for _ in range(len(acs_assign_weapon))]
-                        # data_log = data_blue + data_red
-                        # data_log.append(len(acs_assign_weapon))
-                        # data_log.append(len(targets_in_info))
-                        # data_log.append(value)
-                        # data_log.append(pij)
-                        # data_log.append(qij)
-                        # data_log.append(fij)
-                        # data_log.append(plan.tolist())
+                    # if step_count != 1:
+                    # v1 蓝方对红方的
+                    # logging.info(f'facilities_in目标长度：{len(facilities_in)}')
+                    # logging.info(f'facilities_in_info目标长度1：{len(facilities_in_info)}')
+                    # data_blue = extract_targets_attributes(facilities_in)
+                    # logging.info(f'红方数据长度：{len(data_blue[0])}')
 
-                        # Excel 文件路径
-                        # file_path = '蓝方数据库.xlsx'
-                        # df = pd.DataFrame([data_log])
-                        # if os.path.exists(file_path):
-                        #     # 加载已有 Excel 文件
-                        #     book = load_workbook(file_path)
-                        #
-                        #     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a') as writer:
-                        #         writer.book = book
-                        #
-                        #         # 这里要手动设置 writer.sheets，否则是空的！
-                        #         writer.sheets = {ws.title: ws for ws in book.worksheets}
-                        #
-                        #         # 获取目标 Sheet 的最大行数
-                        #         sheet = writer.sheets['Sheet1']
-                        #         start_row = sheet.max_row
-                        #
-                        #         # 写入下一行
-                        #         df.to_excel(writer, index=False, header=False, startrow=start_row)
-                        # else:
-                        #     # 文件不存在时新建文件
-                        #     df.to_excel(file_path, index=False, engine='openpyxl')
-                        # 蓝方数据库构建结束
+                    # v2 蓝方对红方的
+                    # data_blue = extract_target_encoded_attributes(facilities_in)
+
+                    # 红方对蓝方的
+                    # data = []
+                    # for acs in acs_assign_weapon:
+                    #     ac = acs[0]
+                    #     data_ac = processWtaData(ac)
+                    #     data.append(data_ac)
+                    # data_red = transpose(data)
+                    # logging.info(f'蓝方数据长度：{len(data_red[0])}')
+                    # logging.info(f'数据库蓝方：{data_blue}')
+                    # logging.info(f'数据库红方：{data_red}')
+
+                    # data_log = data_blue + data_red
+                    # data_log.append(len(acs_assign_weapon))
+                    # data_log.append(len(targets_in_info))
+                    # logging.info(f'acs_assign_weapon蓝方数：{len(acs_assign_weapon)}')
+                    # logging.info(f'targets_in_info红方数：{len(targets_in_info)}')
+                    # data_log.append(value)
+                    # logging.info(f'value长度：{len(value)}')
+                    # data_log.append(pij)
+                    # data_log.append(tij)
+                    # data_log.append(weapon_num)
+                    # data_log.append(pair_plan.tolist())
+                    # data_log.append(plan.tolist())
+
+                    # logging.info(f'plan行数：{len(plan)}')
+                    # logging.info(f'plan列数：{len(plan[0])}\n')
+
+                    # # 创建 DataFrame，每个元素一列（DataFrame按列方式初始化）
+                    # custom_headers = ['设施类型名称', '纬度', '经度', '作战范围','射击频率','武器部能力',
+                    #                   '设施类型', '武器类型', '装甲类型', '任务类型', '可视类型', '气象条件类型',
+                    #                   '损伤情况', '重要性', '急迫性',
+                    #                   '空中单位名称', '目标类型', '经纬度', '速度', '方位角', '作战范围',
+                    #                   '武器数量', '目标数量', '威胁值', '打击概率', '损伤概率', '可行性', '分配方案']  # 自定义表头
+                    # df = pd.DataFrame([data_log], columns=custom_headers)
+                    # file_path = '蓝方数据库输出v2.xlsx'
+
+                    # if len(data_blue[0]) == len(targets_in_info):
+                    #     # Excel 文件路径
+                    #     file_path = '蓝方数据库.xlsx'
+                    #     sheet_name = 'Sheet1'
+                    #     df = pd.DataFrame([data_log])  # 假设 data_log 是一个 dict
+                    #
+                    #     # 判断文件是否存在
+                    #     if os.path.exists(file_path):
+                    #         # 打开已有 Excel 文件
+                    #         book = load_workbook(file_path)
+                    #
+                    #         # 启动 ExcelWriter 并追加
+                    #         with pd.ExcelWriter(file_path, engine='openpyxl', mode='a',
+                    #                             if_sheet_exists='overlay') as writer:
+                    #             writer.book = book
+                    #             writer.sheets = {ws.title: ws for ws in book.worksheets}
+                    #
+                    #             # 获取目标 Sheet 当前最大行号（从0开始）
+                    #             if sheet_name in writer.sheets:
+                    #                 start_row = writer.sheets[sheet_name].max_row
+                    #             else:
+                    #                 start_row = 0
+                    #
+                    #             #  只有 start_row=0 时写 header，其他情况只写数据
+                    #             df.to_excel(writer,
+                    #                         sheet_name=sheet_name,
+                    #                         startrow=start_row,
+                    #                         index=False,
+                    #                         header=(start_row == 0))  # 只第一次写表头
+                    #     else:
+                    #         # 第一次写文件
+                    #         df.to_excel(file_path, sheet_name=sheet_name, index=False)
+                    # 蓝方数据库构建结束
 
                     # 依据打击方案，记录分配情况
                     attack_records = []
@@ -1014,8 +562,7 @@ def run(env, train_step):
                                 target_obj, target_guid, target_name, target_lat, target_lon = targets_in_info[j]
 
                                 ac.manual_attack(target_guid, wid, num)
-                                logging.info(
-                                    f"飞机 {name}（编号: {i}） 使用武器 {weapon_name}（数量: {num}） 攻击目标 {target_name}（编号: {j}）")
+                                # logging.info(f"飞机 {name}（编号: {i}） 使用武器 {weapon_name}（数量: {num}） 攻击目标 {target_name}（编号: {j}）")
                                 attack_records.append([
                                     ac, guid, name,
                                     target_obj, target_guid, target_name, target_lat, target_lon,
@@ -1027,7 +574,7 @@ def run(env, train_step):
 
             # 结果结算和监控
             # if step_count == 1 or (step_count > 300 and step_count % 101 == 0):
-            if step_count > trigger and (step_count-trigger + 1) % 30 == 0:
+            if step_count > trigger and (step_count - trigger + 1) % 30 == 0:
                 # 毁伤情况记录
                 attack_log = monitor_attack_results(all_attack_records[-1], facilities_in_info)
                 # 损伤情况记录
@@ -1035,18 +582,25 @@ def run(env, train_step):
                 # 保存到总集合中
                 all_attack_logs.append(attack_log)
                 all_damage_logs.append(damage_log)
-                logging.info(f'attack_logs:{all_attack_logs}')
-                logging.info(f'damage_logs:{all_damage_logs}')
+                # logging.info(f'attack_logs:{all_attack_logs}')
+                # logging.info(f'damage_logs:{all_damage_logs}')
 
             # 根据发射的武器确定取消积压命令和避免浪费
             # 没分配成功的要手动取消
             # unit_drop_target_contact(t)
 
-            if step_count == 450:
-                logging.info(f'all_attack_records:{all_attack_records}')
-                logging.info(f'all_attack_logs:{all_attack_logs}')
-                logging.info(f'all_damage_logs:{all_damage_logs}')
-        blue_move()
+            # if step_count == 450:
+            #     logging.info(f'all_attack_records:{all_attack_records}')
+            #     logging.info(f'all_attack_logs:{all_attack_logs}')
+            #     logging.info(f'all_damage_logs:{all_damage_logs}')
+
+            return data_train_solo
+
+        data_train_solo = blue_move(blue_side, red_side)
+        # 只有真正产生时才收集
+        if data_train_solo is not None:
+            data_train_blue.append(data_train_solo)
+            # logging.info(f'data_train_solo:{data_train_solo}')
         count = count + 1
         # 基地价值阶段
         for k, v in enumerate(Base_guid):
@@ -1056,7 +610,6 @@ def run(env, train_step):
                 Des_base[k] = 0.01 * float(Base_obe[k].strDamageState) * V_a[0][k]
 
         Des = sum(Des_base) / sum(V_a[0])
-        Al = Al
         contacts_dic = red_side.contacts
         # 目标速度大于5判定为空中目标
         targets = [item for item in contacts_dic.values() if item.fCurrentSpeed > 5]
@@ -1156,7 +709,6 @@ def run(env, train_step):
         Temp_unused = []
         # 记录打击的目标
         last_target_weapon = []
-
 
         # 信息融合、威胁评估模块
         S1_target_sum, Threat_S1, qjk_s1, S1_target_v, S1_target_h, S1_target_name, S1_target_a, S1_class_num = None, [], None, None, None, None, None, {}
@@ -1913,9 +1465,9 @@ def run(env, train_step):
             # data_final.append(weapon_system_mapping)
 
             # 采用对应算法
-            model = Al(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a, train_step)
+            # model = algorithm_red.run(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a, train_step)
             # 输出结果
-            S1_best_plan = model.run()
+            S1_best_plan = algorithm_red.run(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a, red_step)
             # data_final.append(S1_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -1991,9 +1543,9 @@ def run(env, train_step):
             # data_final.append(weapon_system_mapping)
 
             # 采用对应算法
-            model = Al(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a, train_step)
+            # model = algorithm_red.run(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a, train_step)
             # 输出结果
-            S2_best_plan = model.run()
+            S2_best_plan = algorithm_red.run(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a, red_step)
             # data_final.append(S2_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2068,9 +1620,10 @@ def run(env, train_step):
             # data_final.append(V_a)
             # data_final.append(weapon_system_mapping)
             # 采用对应算法
-            model = Al(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a, train_step)
+            # model = algorithm_red.run(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a, train_step)
             # 输出结果
-            S3_best_plan = model.run()
+            S3_best_plan = algorithm_red.run(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a, red_step)
+
             # data_final.append(S3_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2144,9 +1697,10 @@ def run(env, train_step):
             # data_final.append(weapon_system_mapping)
 
             # 采用对应算法
-            model = Al(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a, train_step)
+            # model = algorithm_red.run(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a, train_step)
             # 输出结果
-            M1_best_plan = model.run()
+            M1_best_plan = algorithm_red.run(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a, red_step)
+
             # data_final.append(M1_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2221,9 +1775,10 @@ def run(env, train_step):
             # data_final.append(weapon_system_mapping)
 
             # 采用对应算法
-            model = Al(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a, train_step)
+            # model = algorithm_red.run(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a, train_step)
             # 输出结果
-            M2_best_plan = model.run()
+            M2_best_plan = algorithm_red.run(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a, red_step)
+
             # data_final.append(M2_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2296,9 +1851,10 @@ def run(env, train_step):
             # data_final.append(V_a)
             # data_final.append(weapon_system_mapping)
             # 采用对应算法
-            model = Al(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a, train_step)
+            # model = algorithm_red.run(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a, train_step)
             # 输出结果
-            M3_best_plan = model.run()
+            M3_best_plan = algorithm_red.run(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a, red_step)
+
             # data_final.append(M3_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2374,9 +1930,10 @@ def run(env, train_step):
             # data_final.append(V_a)
             # data_final.append(weapon_system_mapping)
             # 采用对应算法
-            model = Al(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a, train_step)
+            # model = algorithm_red.run(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a, train_step)
             # 输出结果
-            L1_best_plan = model.run()
+            L1_best_plan = algorithm_red.run(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a, red_step)
+
             # data_final.append(L1_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2454,9 +2011,10 @@ def run(env, train_step):
             # data_final.append(weapon_system_mapping)
 
             # 采用对应算法
-            model = Al(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a, train_step)
+            # model = algorithm_red.run(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a, train_step)
             # 输出结果
-            L2_best_plan = model.run()
+            L2_best_plan = algorithm_red.run(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a, red_step)
+
             # data_final.append(L2_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -2517,23 +2075,22 @@ def run(env, train_step):
             Result_plan.append(sub_plan)
         sub_plan = []
 
-
         # 监测武器和目标状态来判断是否打击成功
         for every_plan in Result_plan:
             for state in every_plan:
-                w = state[3]   # 武器guide
-                t = state[4]   # 目标guide
-                s = state[5]   # “x"
+                w = state[3]  # 武器guide
+                t = state[4]  # 目标guide
+                s = state[5]  # “x"
                 t_name = state[1]
                 if t in target_hit:
-                    state[5] = 'T'   # 已命中
+                    state[5] = 'T'  # 已命中
                 else:
                     if s == 'x':
                         if not scenario.unit_is_alive(w):
                             if scenario.unit_is_alive(t):
-                                state[5] = 'F'    # 武器没了目标还在 -》失败
+                                state[5] = 'F'  # 武器没了目标还在 -》失败
                             else:
-                                state[5] = 'T'    # 武器和目标都没了 -》命中
+                                state[5] = 'T'  # 武器和目标都没了 -》命中
                                 target_hit.append(t)
                                 target_hit_name.append(t_name)
                                 count_hit += 1
@@ -2623,40 +2180,15 @@ def run(env, train_step):
             damage_vate = dataProcess.compute_damage(damage_list_0, damage_list_1)
             r1 = damage_vate
             r2 = count_hit / len(TARGET)
+            reward_destory_blue = 1
+            reward_damaged_blue = 2
             break
             # sys.exit(0)
         else:
             pass
 
-    return r1, r2
+    return r1, r2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue
 
-def fill_empty_cells(file_path, target_col, value_to_fill, sheet_name=None):
-    """
-    如果 Excel 指定列中的单元格为空，则填入指定的值。
-
-    参数：
-    - file_path: Excel 文件路径
-    - target_col: 目标列号（从 1 开始，例如第 3 列就是 3）
-    - value_to_fill: 要填入的值，例如 'a'
-    - sheet_name: 可选，工作表名；如果不提供，使用第一个工作表
-    """
-    wb = load_workbook(file_path)
-
-    # 如果没有指定 sheet_name，使用第一个工作表
-    if sheet_name is None:
-        ws = wb.active
-    else:
-        ws = wb[sheet_name]
-
-    max_row = ws.max_row
-
-    for row in range(1, max_row + 1):
-        cell = ws.cell(row=row, column=target_col)
-        if cell.value is None or str(cell.value).strip() == '':
-            cell.value = value_to_fill
-
-    wb.save(file_path)
-    print(f"已完成填充，文件已保存：{file_path}")
 
 def main():
     """主函数"""
@@ -2670,18 +2202,42 @@ def main():
                           agent_key_event_file=args.agent_key_event_file, platform_mode=args.platform_mode)
 
     else:
-        for j in range(3):
-            data.clear()
+        # 红方训练
+        red_step = 0
+        blue_step = 0
+        reward1_line = []
+        reward2_line = []
+        for j in range(20):
             print('开发模式')
             env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
                               scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
                               duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
                               app_mode=etc.app_mode)
 
-            reward1, reward2 = run(env, j)
-            train_pointer(reward1, reward2)
+            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+            red_step += 1
+            algorithm_red.train_pointer(reward1, reward2)
+            reward1_line.append(1 - reward1)
+            reward2_line.append(reward2)
+            print(f'reward1 = ', reward1_line)
+            print(f'reward2 = ', reward2_line)
+        print(f'reward1 = ',reward1_line)
+        print(f'reward2 = ',reward2_line)
+        print(f'reward_line=', reward_line)
+        for j in range(3):
+            print('开发模式')
+            env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+                              scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+                              duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+                              app_mode=etc.app_mode)
+
+            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+            blue_step += 1
+            algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+
 
     return
+
 
 try:
     main()
@@ -2691,5 +2247,3 @@ except Exception as e:
     with open(log_filename, 'w', encoding='utf-8') as error_file:
         traceback.print_exc(file=error_file)
     sys.exit()
-
-
