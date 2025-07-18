@@ -365,6 +365,8 @@ class PN_WTA_red:
         actor_optim = optim.Adam(self.actor_model.parameters(), lr=actor_lr)
         critic_optim = optim.Adam(self.critic_model.parameters(), lr=critic_lr)
         step = 0
+        reward_mean = np.mean([x[0].item() for x in data])
+        reward_line.append(reward_mean)
 
         save_dir = os.path.join(os.getcwd(), 'pointer_model_new')
         checkpoint_dir = os.path.join(save_dir, 'checkpoints')
@@ -382,7 +384,6 @@ class PN_WTA_red:
             torch.tensor(fitnesss, dtype=torch.float32, device=device)
             reward = fitnesss + 0.5 * (1 - reward1 + reward2)
             f = 1 / reward
-            reward_line.append(reward)
             advantage = (f - critic_est)
             actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
             critic_loss = torch.mean(advantage ** 2)
