@@ -782,3 +782,44 @@ def processWtaData(target):
         targetResult[0][5] = 0
 
     return targetResult
+
+
+def compute_damage(damage_list_0, damage_list_1):
+    fac_name_0 = damage_list_0[0]
+    fac_name_1 = damage_list_1[0]
+    fac_damage_1 = damage_list_1[1]
+    value_all = 0
+    damage = 0
+
+    JD = 4
+    WQ = 1
+    LD = 2
+
+    for item in fac_name_0:
+        if item in fac_name_1:
+            if "基地" in item:
+                damage += fac_damage_1[fac_name_1.index(item)] * JD
+            elif "HQ" in item:
+                damage += fac_damage_1[fac_name_1.index(item)] * WQ
+            elif "LD" in item:
+                damage += fac_damage_1[fac_name_1.index(item)] * LD
+        elif item not in fac_name_1:
+            if "基地" in item:
+                damage += JD
+            elif "HQ" in item:
+                damage += WQ
+            elif "LD" in item:
+                damage += LD
+
+        if "基地" in item:
+            value_all += JD
+        elif "HQ" in item:
+            value_all += WQ
+        elif "雷达" in item:
+            value_all += LD
+
+
+    result = damage/value_all
+
+    return result
+

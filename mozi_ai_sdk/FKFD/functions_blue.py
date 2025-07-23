@@ -2,6 +2,7 @@ import numpy as np
 from typing import List, Dict
 import re
 import math
+import torch
 #1234567890
 def monitor_attack_results(attack_records:list, facilities_info:list, coord_tol=0.0001):
     """
@@ -139,6 +140,19 @@ def monitor_aircraft_damage(attack_records:list,  acs_assign_info:list):
         ])
 
     return result_log
+
+def get_red_damage(facilities_in):
+    names = []
+    damage_state = []
+
+    for target in facilities_in:
+        name = target.strName
+        damage = float(target.strDamageState) / 100
+        # 加入输出列表
+        names.append(name)
+        damage_state.append(damage)
+
+    return [names, damage_state]
 
 # 全局定义武器名称 -> 打击概率字典
 weapon2pij_dict = {
@@ -680,7 +694,7 @@ def extract_target_encoded_attributes(facilities_in):
         mission_codes, is_visible_codes, weather_codes,
         damages, importance_scores, urgency_scores]
 
-def apply_assignment_with_limits(plan, tij, weapon_num):
+def apply_assignment_with_limits(plan:list, tij:list, weapon_num:list):
     """
     根据遗传算法输出的配对矩阵 plan，结合 tij 和 weapon_num 得到实际分配矩阵
     :param plan: [n_units x n_targets] 0-1 配对矩阵
@@ -688,7 +702,7 @@ def apply_assignment_with_limits(plan, tij, weapon_num):
     :param weapon_num: [n_units] 每个单位的武器总数
     :return: [n_units x n_targets] 实际分配矩阵
     """
-    n_units, n_targets = plan.shape
+    n_units, n_targets = np.array(plan).shape
     tij = np.array(tij)
     weapon_num = np.array(weapon_num)
     actual = np.zeros_like(plan, dtype=int)
