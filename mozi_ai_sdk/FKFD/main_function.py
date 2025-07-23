@@ -36,8 +36,10 @@ parser.add_argument("--side_name", type=str, default='蓝方')
 parser.add_argument("--agent_key_event_file", type=str, default=None)
 
 #  设置墨子安装目录下bin目录为MOZIPATH，程序会自动启动墨子
-os.environ['MOZIPATH'] = 'D:\\Mozi\\\MoziServer\\bin'
-print(os.environ['MOZIPATH'])
+# 设置环境变量
+os.environ['MOZIPATH'] = etc.MOZIPATH
+# 测试
+print("MOZIPATH =", os.environ['MOZIPATH'])
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 获取当前文件的目录
@@ -351,9 +353,17 @@ def run(env, blue_step, red_step):
     all_damage_logs = []  # # 存放每一轮的 damage_log 列表
     data_train_blue = []    # 存放每一次推演的数据，包括方案，适应度，logp，critic_est
     algorithm_red = PN_WTA_red(step=red_step)
+    # 红方设施初始状态
     red_facilities_in = red_side.get_facilities().values()
     damage_list_0 = get_red_damage(red_facilities_in)
+
     algorithm_blue = PN_WTA_blue(step=blue_step)
+    # 蓝方飞机初始状态
+    acs_ini = [
+        ac.strName for ac in blue_side.get_aircrafts().values()
+        if
+        any(t in ac.strName for t in ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机'])
+    ]
 
     while True:
         # scenario.set_cur_side_and_dir_view("蓝方", "false")
@@ -2178,10 +2188,22 @@ def run(env, blue_step, red_step):
             red_facilities_in = red_side.get_facilities().values()
             damage_list_1 = get_red_damage(red_facilities_in)
             damage_vate = dataProcess.compute_damage(damage_list_0, damage_list_1)
+            # 红方收益计算
             r1 = damage_vate
             r2 = count_hit / len(TARGET)
-            reward_destory_blue = 1
-            reward_damaged_blue = 2
+            # 蓝方收益计算
+            reward_destory_blue = damage_vate
+            # 测试
+            # 蓝方飞机初始状态
+            acs_end = [
+                ac.strName for ac in blue_side.get_aircrafts().values()
+                if
+                any(t in ac.strName for t in
+                    ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机'])
+            ]
+            # logging.info(f'ac_ini:{len(acs_ini)}')
+            # logging.info(f'ac_end:{len(acs_end)}')
+            reward_damaged_blue = len(acs_end)/len(acs_ini)
             break
             # sys.exit(0)
         else:
@@ -2207,24 +2229,24 @@ def main():
         blue_step = 0
         reward1_line = []
         reward2_line = []
-        for j in range(20):
-            print('开发模式')
-            env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
-                              scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
-                              duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
-                              app_mode=etc.app_mode)
-
-            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
-            red_step += 1
-            algorithm_red.train_pointer(reward1, reward2)
-
-            reward1_line.append(1 - reward1)
-            reward2_line.append(reward2)
-            print(f'reward1 = ', reward1_line)
-            print(f'reward2 = ', reward2_line)
-        print(f'reward1 = ',reward1_line)
-        print(f'reward2 = ',reward2_line)
-        print(f'reward_line=', reward_line)
+        # for j in range(20):
+        #     print('开发模式')
+        #     env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+        #                       scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+        #                       duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+        #                       app_mode=etc.app_mode)
+        #
+        #     reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+        #     red_step += 1
+        #     algorithm_red.train_pointer(reward1, reward2)
+        #
+        #     reward1_line.append(1 - reward1)
+        #     reward2_line.append(reward2)
+        #     print(f'reward1 = ', reward1_line)
+        #     print(f'reward2 = ', reward2_line)
+        # print(f'reward1 = ',reward1_line)
+        # print(f'reward2 = ',reward2_line)
+        # print(f'reward_line=', reward_line)
         for j in range(3):
             print('开发模式')
             env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,

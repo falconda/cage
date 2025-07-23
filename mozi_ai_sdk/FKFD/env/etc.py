@@ -14,10 +14,12 @@ APP_ABSPATH = os.path.dirname(__file__)
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = "6060"
 PLATFORM = 'windows' if sys.platform == 'win32' else sys.platform
-SCENARIO_NAME = "性能对比版本9.scen"
+SCENARIO_NAME = "性能对比版本10.scen"
 SIMULATE_COMPRESSION = 3
 DURATION_INTERVAL = 15
 SYNCHRONOUS = True
+# MoziServer 的路径
+MOZIPATH = r"C:\Program Files (x86)\Mozi\Mozi\MoziServer\bin"
 #######################
 # app_mode:
 # 1--local windows train mode
