@@ -140,6 +140,19 @@ def monitor_aircraft_damage(attack_records:list,  acs_assign_info:list):
 
     return result_log
 
+def get_red_damage(facilities_in):
+    names = []
+    damage_state = []
+
+    for target in facilities_in:
+        name = target.strName
+        damage = float(target.strDamageState) / 100
+        # 加入输出列表
+        names.append(name)
+        damage_state.append(damage)
+
+    return [names, damage_state]
+
 # 全局定义武器名称 -> 打击概率字典
 weapon2pij_dict = {
     'AGM-65G2型“小牛”空地战术导弹': 0.9,
