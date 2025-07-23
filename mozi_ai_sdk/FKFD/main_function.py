@@ -45,8 +45,15 @@ current_dir = os.path.dirname(__file__)
 # 拼接路径，指向当前文件夹下的 "model" 文件夹
 WTAModelPath = os.path.join(current_dir, "model")
 device = torch.device('cpu')
+data_train_blue = []    # 存放每一次推演的数据，包括方案，适应度，logp，critic_est
+reward_line_test=[]
+red_step = 0
+blue_step = 0
 
-def run(env, blue_step, red_step):
+def run(env, side):
+    global red_step
+    global blue_step
+    global data_train_blue
     # 启动墨子服务器，连接墨子服务器，获取初始态势数据
     env.start()
     # 加载想定，初始化推演方
@@ -349,7 +356,6 @@ def run(env, blue_step, red_step):
     all_attack_records = []  # 存放每一轮的 attack_records 列表
     all_attack_logs = []  # 存放每一轮的 attack_log 列表
     all_damage_logs = []  # # 存放每一轮的 damage_log 列表
-    data_train_blue = []    # 存放每一次推演的数据，包括方案，适应度，logp，critic_est
     algorithm_red = PN_WTA_red(step=red_step)
     red_facilities_in = red_side.get_facilities().values()
     damage_list_0 = get_red_damage(red_facilities_in)
@@ -358,7 +364,7 @@ def run(env, blue_step, red_step):
     while True:
         # scenario.set_cur_side_and_dir_view("蓝方", "false")
         step_count += 1  # 更新一步:每一步经过时长有推演倍速决定
-        logging.info(f'step_count:{step_count}')
+        # logging.info(f'step_count:{step_count}')
         blue_side.static_update()
         red_side.static_update()
 
@@ -1467,7 +1473,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a, train_step)
             # 输出结果
-            S1_best_plan = algorithm_red.run(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a, red_step)
+            S1_best_plan = algorithm_red.run(S1_weapon_sum, S1_target_sum, [Threat_S1], Pij_S1, Fij_1, qjk_s1, V_a)
             # data_final.append(S1_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -1545,7 +1551,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a, train_step)
             # 输出结果
-            S2_best_plan = algorithm_red.run(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a, red_step)
+            S2_best_plan = algorithm_red.run(S2_weapon_sum, S2_target_sum, [Threat_S2], Pij_S2, Fij_2, qjk_s2, V_a)
             # data_final.append(S2_best_plan)
             # data_final.append(fit_ness)
             # data_final.append(tour_logp)
@@ -1622,7 +1628,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a, train_step)
             # 输出结果
-            S3_best_plan = algorithm_red.run(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a, red_step)
+            S3_best_plan = algorithm_red.run(S3_weapon_sum, S3_target_sum, [Threat_S3], Pij_S3, Fij_3, qjk_s3, V_a)
 
             # data_final.append(S3_best_plan)
             # data_final.append(fit_ness)
@@ -1699,7 +1705,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a, train_step)
             # 输出结果
-            M1_best_plan = algorithm_red.run(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a, red_step)
+            M1_best_plan = algorithm_red.run(M1_weapon_sum, M1_target_sum, [Threat_M1], Pij_M1, Fij_4, qjk_m1, V_a)
 
             # data_final.append(M1_best_plan)
             # data_final.append(fit_ness)
@@ -1777,7 +1783,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a, train_step)
             # 输出结果
-            M2_best_plan = algorithm_red.run(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a, red_step)
+            M2_best_plan = algorithm_red.run(M2_weapon_sum, M2_target_sum, [Threat_M2], Pij_M2, Fij_5, qjk_m2, V_a)
 
             # data_final.append(M2_best_plan)
             # data_final.append(fit_ness)
@@ -1853,7 +1859,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a, train_step)
             # 输出结果
-            M3_best_plan = algorithm_red.run(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a, red_step)
+            M3_best_plan = algorithm_red.run(M3_weapon_sum, M3_target_sum, [Threat_M3], Pij_M3, Fij_6, qjk_m3, V_a)
 
             # data_final.append(M3_best_plan)
             # data_final.append(fit_ness)
@@ -1932,7 +1938,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a, train_step)
             # 输出结果
-            L1_best_plan = algorithm_red.run(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a, red_step)
+            L1_best_plan = algorithm_red.run(L1_weapon_sum, L1_target_sum, [Threat_L1], Pij_L1, Fij_7, qjk_l1, V_a)
 
             # data_final.append(L1_best_plan)
             # data_final.append(fit_ness)
@@ -2013,7 +2019,7 @@ def run(env, blue_step, red_step):
             # 采用对应算法
             # model = algorithm_red.run(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a, train_step)
             # 输出结果
-            L2_best_plan = algorithm_red.run(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a, red_step)
+            L2_best_plan = algorithm_red.run(L2_weapon_sum, L2_target_sum, [Threat_L2], Pij_L2, Fij_8, qjk_l2, V_a)
 
             # data_final.append(L2_best_plan)
             # data_final.append(fit_ness)
@@ -2165,6 +2171,16 @@ def run(env, blue_step, red_step):
                             break
         time = scenario.m_Duration.split('@')
         duration = int(time[0]) * 86400 + int(time[1]) * 3600 + int(time[2]) * 60
+        if side == 0:
+            reward = algorithm_red.train_pointer()
+            if reward!= -1:
+                reward_line_test.append(reward)
+                red_step += 1
+                algorithm_red = PN_WTA_red(step=red_step)
+                # print(f'reward = ', reward_line_test)
+                print(f'red_step = ', red_step)
+                print(f'blue_step = ', blue_step)
+                print("=========")
         if scenario.m_StartTime + duration <= scenario.m_Time:
             Time_list = [S1_time_list, S2_time_list, S3_time_list, M1_time_list, M2_time_list,
                          M3_time_list, L1_time_list, L2_time_list, T_time_list,
@@ -2202,41 +2218,46 @@ def main():
                           agent_key_event_file=args.agent_key_event_file, platform_mode=args.platform_mode)
 
     else:
+        global red_step
+        global blue_step
+        global data_train_blue
         # 红方训练
-        red_step = 0
-        blue_step = 0
         reward1_line = []
         reward2_line = []
-        for j in range(20):
-            print('开发模式')
-            env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
-                              scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
-                              duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
-                              app_mode=etc.app_mode)
+        for t in range(5):
+            for j in range(1):
+                print('开发模式-red')
+                env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+                                  scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+                                  duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+                                  app_mode=etc.app_mode)
 
-            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
-            red_step += 1
-            algorithm_red.train_pointer(reward1, reward2)
-            reward1_line.append(1 - reward1)
-            reward2_line.append(reward2)
-            print(f'reward1 = ', reward1_line)
-            print(f'reward2 = ', reward2_line)
-        print(f'reward1 = ',reward1_line)
-        print(f'reward2 = ',reward2_line)
-        print(f'reward_line=', reward_line)
-        for j in range(3):
-            print('开发模式')
-            env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
-                              scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
-                              duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
-                              app_mode=etc.app_mode)
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env,0)
+                # algorithm_red.train_pointer(reward1, reward2)
+                reward1_line.append(1 - reward1)
+                reward2_line.append(reward2)
+                print(f'reward1 = ', reward1_line)
+                print(f'reward2 = ', reward2_line)
+            for j in range(3):
+                print('开发模式-blue')
+                data_train_blue.clear()
+                env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+                                  scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+                                  duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+                                  app_mode=etc.app_mode)
 
-            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
-            blue_step += 1
-            algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env,1)
+                blue_step += 1
+                algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+                reward1_line.append(1 - reward1)
+                reward2_line.append(reward2)
+                print(f'red_step = ', red_step)
+                print(f'blue_step = ', blue_step)
+                print(f'reward1 = ', reward1_line)
+                print(f'reward2 = ', reward2_line)
+                print("=========")
 
 
-    return
 
 
 try:

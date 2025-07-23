@@ -363,7 +363,8 @@ class PN_WTA_blue:
             critic_est = data_line[0][2]
 
             torch.tensor(fitnesss, dtype=torch.float32, device=device)
-            reward = fitnesss + 0.5 * (1 - reward1 + reward2)
+            # reward = fitnesss + 0.5 * (1 - reward1 + reward2)
+            reward = fitnesss
             f = 1 / reward
             advantage = (f - critic_est)
             actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))

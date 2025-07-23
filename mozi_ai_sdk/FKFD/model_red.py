@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import os
+
 torch.autograd.set_detect_anomaly(True)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -19,6 +20,7 @@ actor_lr = 5e-4
 critic_lr = 5e-4
 file_number = 0
 reward_line = []
+
 
 class StateCritic(nn.Module):
     def __init__(self, static_size, static1_size, static2_size, hidden_size, num_weapon, num_target):
@@ -48,6 +50,7 @@ class StateCritic(nn.Module):
         output = self.fc3(output).sum(dim=2)
         return output
 
+
 class Encoder(nn.Module):
     """Encodes the static & dynamic states using 1d Convolution."""
 
@@ -58,6 +61,7 @@ class Encoder(nn.Module):
     def forward(self, input):
         output = self.conv(input)
         return output  # (batch, hidden_size, seq_len)
+
 
 class Attention(nn.Module):
     """Calculates attention over the input nodes given the current state."""
@@ -83,6 +87,7 @@ class Attention(nn.Module):
         attns = torch.bmm(v, torch.tanh(torch.bmm(W, hidden)))
         attns = F.softmax(attns, dim=2)  # (batch, seq_len)# 第三个维度概率归一化
         return attns
+
 
 class Pointer(nn.Module):
     """Calculates the next state given the previous state and input embeddings."""
@@ -134,6 +139,7 @@ class Pointer(nn.Module):
         probs = torch.bmm(v, torch.tanh(torch.bmm(W, energy))).squeeze(1)
 
         return probs, last_hh
+
 
 class DRL4TSP(nn.Module):
     def __init__(self, static_size, static1_size, static2_size, hidden_size,
@@ -239,20 +245,20 @@ class DRL4TSP(nn.Module):
 
 
 class PN_WTA_red:
-    def __init__(self, step=0):
+    def __init__(self, step):
         """只负责加载模型，不绑定输入数据"""
         self.data_line = []
         self.data = []
 
         # ✅ 初始化 Actor & Critic
         self.actor_model = DRL4TSP(STATIC_SIZE,
-                              STATIC1_SIZE,
-                              STATIC2_SIZE,
-                              256,
-                              None,
-                              wta_update_mask,
-                              1,
-                              0.1).to(device)
+                                   STATIC1_SIZE,
+                                   STATIC2_SIZE,
+                                   256,
+                                   None,
+                                   wta_update_mask,
+                                   1,
+                                   0.1).to(device)
 
         self.critic_model = StateCritic(STATIC_SIZE, STATIC1_SIZE, STATIC2_SIZE, 256, 20, 20).to(device)
 
@@ -263,17 +269,17 @@ class PN_WTA_red:
             self.actor_model.to(device)
         else:
             NEWModelPath = os.path.join(current_dir, "pointer_model_new")
-            checkpoint_actor_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "actor.pt")
+            checkpoint_actor_path = os.path.join(NEWModelPath, "checkpoints", str(step - 1), "actor.pt")
             weight = torch.load(checkpoint_actor_path, map_location='cpu')
             self.actor_model.load_state_dict(weight)
             self.actor_model.to(device)
 
-            checkpoint_critic_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "critic.pt")
+            checkpoint_critic_path = os.path.join(NEWModelPath, "checkpoints", str(step - 1), "critic.pt")
             weight = torch.load(checkpoint_critic_path, map_location='cpu')
             self.critic_model.load_state_dict(weight)
             self.critic_model.to(device)
 
-    def init_WTA_input(self, num_weapon, num_target, vt, pij, fij,  qjk, vb):
+    def init_WTA_input(self, num_weapon, num_target, vt, pij, fij, qjk, vb):
         num_samples = 1
         # WTA信息处理
         Randint = len(vb)  # 基地的数量
@@ -319,7 +325,7 @@ class PN_WTA_red:
         self.dataset1 = torch.cat((self.f1, self.base1, self.target_pij1, self.weapon_pij, self.weapon_fij,
                                    self.target_threat1, self.weapon_pij), dim=1)
 
-    def run(self, num_weapon, num_target, Wei, Pij, Fij, Qjk, V_a, step):
+    def run(self, num_weapon, num_target, Wei, Pij, Fij, Qjk, V_a):
         self.num_weapon = torch.tensor(num_weapon).to(device)
         self.num_target = torch.tensor(num_target).to(device)
         self.Threat = Wei[0]
@@ -359,58 +365,60 @@ class PN_WTA_red:
 
         return plan, tour_logp, critic_est
 
-
-    def train_pointer(self, reward1, reward2):
+    def train_pointer(self):
         data = self.data
-        actor_optim = optim.Adam(self.actor_model.parameters(), lr=actor_lr)
-        critic_optim = optim.Adam(self.critic_model.parameters(), lr=critic_lr)
-        step = 0
-        reward_mean = np.mean([x[0].item() for x in data])
-        reward_line.append(reward_mean)
+        if len(data) >= 20:
+            # print('trainning')
+            actor_optim = optim.Adam(self.actor_model.parameters(), lr=actor_lr)
+            critic_optim = optim.Adam(self.critic_model.parameters(), lr=critic_lr)
+            step = 0
+            reward_mean = np.mean([x[0].item() for x in data])
+            save_dir = os.path.join(os.getcwd(), 'pointer_model_new')
+            checkpoint_dir = os.path.join(save_dir, 'checkpoints')
+            if not os.path.exists(checkpoint_dir):
+                os.makedirs(checkpoint_dir)
+            for data_line in data:
+                # print(step)
+                step += 1
+                # data_line是二维列表
+                fitnesss = data_line[0]
+                tour_logp = data_line[1]
+                critic_est = data_line[2]
 
-        save_dir = os.path.join(os.getcwd(), 'pointer_model_new')
-        checkpoint_dir = os.path.join(save_dir, 'checkpoints')
-        if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
+                torch.tensor(fitnesss, dtype=torch.float32, device=device)
+                # reward = fitnesss + 0.5 * (1 - reward1 + reward2)
+                reward = fitnesss
+                f = 1 / reward
+                reward_line.append(reward)
+                advantage = (f - critic_est)
+                actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
+                critic_loss = torch.mean(advantage ** 2)
+                # 梯度清零、反向传播、优化器更新
+                actor_optim.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+                actor_optim.step()
 
-        for data_line in data:
-            print(step)
-            step += 1
-            # data_line是二维列表
-            fitnesss = data_line[0]
-            tour_logp = data_line[1]
-            critic_est = data_line[2]
+                critic_optim.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_grad_norm)
+                critic_optim.step()
+            self.data.clear()
 
-            torch.tensor(fitnesss, dtype=torch.float32, device=device)
-            reward = fitnesss + 0.5 * (1 - reward1 + reward2)
-            f = 1 / reward
-            advantage = (f - critic_est)
-            actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
-            critic_loss = torch.mean(advantage ** 2)
-            # 梯度清零、反向传播、优化器更新
-            actor_optim.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-            actor_optim.step()
-
-            critic_optim.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_grad_norm)
-            critic_optim.step()
-        self.data.clear()
-
-        # Save the weights
-        global file_number
-        epoch_dir = os.path.join(checkpoint_dir, '%s' % file_number)
-        file_number += 1
-        if not os.path.exists(epoch_dir):
-            os.makedirs(epoch_dir)
-
-        save_path = os.path.join(epoch_dir, 'actor.pt')
-        torch.save(self.actor_model.state_dict(), save_path)
-        save_path = os.path.join(epoch_dir, 'critic.pt')
-        torch.save(self.critic_model.state_dict(), save_path)
-        print('finish!')
+            # Save the weights
+            global file_number
+            epoch_dir = os.path.join(checkpoint_dir, '%s' % file_number)
+            file_number += 1
+            if not os.path.exists(epoch_dir):
+                os.makedirs(epoch_dir)
+            save_path = os.path.join(epoch_dir, 'actor.pt')
+            torch.save(self.actor_model.state_dict(), save_path)
+            save_path = os.path.join(epoch_dir, 'critic.pt')
+            torch.save(self.critic_model.state_dict(), save_path)
+            # print('finish!')
+            return reward_mean
+        else:
+            return -1
 
 
 def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
@@ -430,6 +438,7 @@ def wta_update_mask(mask, chosen_idx, num_weapon=20, num_target=20):
     mask.scatter_(1, weapon_mask, 0)
     mask.scatter_(1, target_mask, 0)
     return mask
+
 
 def trans_to_plan(index, num_weapon, num_target):
     batch_size = index.size(0)
@@ -454,6 +463,7 @@ def trans_to_plan(index, num_weapon, num_target):
         index_sort[row] = torch.tensor(plan, device=index.device)
 
     return index_sort
+
 
 def trans_norm(tensor_input, num_base, base_value):
     """
@@ -486,6 +496,7 @@ def trans_norm(tensor_input, num_base, base_value):
             random_norm[i][j] = 1 / C[i][index]
             random_norm_base[i][j] = base_value[index]
     return random_norm, random_norm_base
+
 
 def F7(x, num_w, num_t, num_b, vj, pij, fij, qij, wb):
     x0 = [-1] * num_w
