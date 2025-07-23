@@ -2217,6 +2217,7 @@ def main():
             reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
             red_step += 1
             algorithm_red.train_pointer(reward1, reward2)
+
             reward1_line.append(1 - reward1)
             reward2_line.append(reward2)
             print(f'reward1 = ', reward1_line)

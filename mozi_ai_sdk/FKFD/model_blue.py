@@ -10,6 +10,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 current_dir = os.path.dirname(__file__)
 WTAModelPath = os.path.join(current_dir, "model")
 
+
 # 指针网络相关参数
 STATIC_SIZE = 4  # (x, y)
 STATIC1_SIZE = 6
