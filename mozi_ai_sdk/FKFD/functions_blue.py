@@ -3,7 +3,7 @@ from typing import List, Dict
 import re
 import math
 import torch
-#1234567890
+#1
 def monitor_attack_results(attack_records:list, facilities_info:list, coord_tol=0.0001):
     """
     监控打击结果，更新损伤信息（使用经纬度配对目标）。适配列表结构 attack_records。
