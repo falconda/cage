@@ -368,7 +368,7 @@ def run(env, blue_step, red_step):
     while True:
         # scenario.set_cur_side_and_dir_view("蓝方", "false")
         step_count += 1  # 更新一步:每一步经过时长有推演倍速决定
-        logging.info(f'step_count:{step_count}')
+        # logging.info(f'step_count:{step_count}')
         blue_side.static_update()
         red_side.static_update()
 
@@ -2229,37 +2229,44 @@ def main():
         blue_step = 0
         reward1_line = []
         reward2_line = []
-        # for j in range(20):
-        #     print('开发模式')
-        #     env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
-        #                       scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
-        #                       duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
-        #                       app_mode=etc.app_mode)
-        #
-        #     reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
-        #     red_step += 1
-        #     algorithm_red.train_pointer(reward1, reward2)
-        #
-        #     reward1_line.append(1 - reward1)
-        #     reward2_line.append(reward2)
-        #     print(f'reward1 = ', reward1_line)
-        #     print(f'reward2 = ', reward2_line)
-        # print(f'reward1 = ',reward1_line)
-        # print(f'reward2 = ',reward2_line)
-        # print(f'reward_line=', reward_line)
-        for j in range(3):
-            print('开发模式')
-            env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
-                              scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
-                              duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
-                              app_mode=etc.app_mode)
+        reward_destory = []
+        reward_damaged = []
+        for i in range(2):
+            for j in range(15):
+                print('开发模式')
+                env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+                                  scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+                                  duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+                                  app_mode=etc.app_mode)
 
-            reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
-            blue_step += 1
-            algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+                red_step += 1
+                algorithm_red.train_pointer(reward1, reward2)
 
+                reward1_line.append(1 - reward1)
+                reward2_line.append(reward2)
+                logging.info(f'reward1 = {reward1_line}')
+                logging.info(f'reward2 = {reward2_line}')
+            logging.info(f'reward1 = {reward1_line}')
+            logging.info(f'reward2 = {reward2_line}')
+            logging.info(f'reward_line = {reward_line}')
+            for j in range(15):
+                print('开发模式')
+                env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
+                                  scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
+                                  duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
+                                  app_mode=etc.app_mode)
 
-    return
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+                blue_step += 1
+                algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+                logging.info(f'reward_destory_blue: {reward_destory_blue}')
+                logging.info(f'reward_damaged_blue: {reward_damaged_blue}')
+                reward_destory.append(reward_destory_blue)
+                reward_damaged.append(reward_damaged_blue)
+                logging.info(f'reward_destory = {reward_destory}')
+                logging.info(f'reward_damaged = {reward_damaged}')
+        return
 
 
 try:

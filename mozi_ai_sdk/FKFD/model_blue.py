@@ -226,6 +226,7 @@ class PN_WTA_blue:
     def __init__(self, step=0):
         """只负责加载模型，不绑定输入数据"""
         self.data_line = []
+        self.data = []
 
         # ✅ 初始化 Actor & Critic
         self.actor_model = DRL4TSP(
@@ -245,12 +246,12 @@ class PN_WTA_blue:
             self.actor_model.to(device)
         else:
             NEWModelPath = os.path.join(current_dir, "pointer_model_new")
-            checkpoint_actor_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "actor_blue.pt")
+            checkpoint_actor_path = os.path.join(NEWModelPath, "checkpoints_blue", str(step-1), "actor_blue.pt")
             weight = torch.load(checkpoint_actor_path, map_location='cpu')
             self.actor_model.load_state_dict(weight)
             self.actor_model.to(device)
 
-            checkpoint_critic_path = os.path.join(NEWModelPath, "checkpoints", str(step-1), "critic_blue.pt")
+            checkpoint_critic_path = os.path.join(NEWModelPath, "checkpoints_blue", str(step-1), "critic_blue.pt")
             weight = torch.load(checkpoint_critic_path, map_location='cpu')
             self.critic_model.load_state_dict(weight)
             self.critic_model.to(device)
@@ -321,6 +322,7 @@ class PN_WTA_blue:
         ava_weapon = np.array(weapon_num)
         tij = np.array(tij)
         num_weapon, num_target = pij.shape
+        self.data_line = []
 
         #  转换为 Tensor
         pij_t = torch.tensor(pij, dtype=torch.float32)
@@ -344,41 +346,76 @@ class PN_WTA_blue:
 
         #  保存数据用于训练
         data_line = [fitnesss, tour_logp, critic_est]
+        self.data_line.append(fitnesss)
+        self.data_line.append(tour_logp)
+        self.data_line.append(critic_est)
+        self.data.append(self.data_line)
         return plan_mat, result, [data_line]
 
 
-    def train_pointer(self, reward1, reward2, data):
+    def train_pointer(self, reward1, reward2, record_data):
         actor_optim = optim.Adam(self.actor_model.parameters(), lr=actor_lr)
         critic_optim = optim.Adam(self.critic_model.parameters(), lr=critic_lr)
         step = 0
 
         save_dir = os.path.join(os.getcwd(), 'pointer_model_new')
-        checkpoint_dir = os.path.join(save_dir, 'checkpoints')
+        checkpoint_dir = os.path.join(save_dir, 'checkpoints_blue')
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
 
+        data = self.data
+        all_actor_losses = []
+        all_critic_losses = []
+        all_rewards = []
+
         for data_line in data:
+            print(step)
+            step+=1
             # data_line是二维列表
-            fitnesss = data_line[0][0]
-            tour_logp = data_line[0][1]
-            critic_est = data_line[0][2]
+            fitnesss = data_line[0]
+            tour_logp = data_line[1]
+            critic_est = data_line[2]
 
             torch.tensor(fitnesss, dtype=torch.float32, device=device)
-            reward = fitnesss + 0.5 * (1 - reward1 + reward2)
-            f = 1 / reward
+            reward = fitnesss + 0.5 * (reward1 + reward2)
+            # f = 1 / reward
+            f = reward
             advantage = (f - critic_est)
             actor_loss = torch.mean(advantage.detach() * tour_logp.sum(dim=1))
             critic_loss = torch.mean(advantage ** 2)
-            # 梯度清零、反向传播、优化器更新
-            actor_optim.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
-            actor_optim.step()
 
-            critic_optim.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_grad_norm)
-            critic_optim.step()
+            all_actor_losses.append(actor_loss)
+            all_critic_losses.append(critic_loss)
+            all_rewards.append(f)
+
+            # 梯度清零、反向传播、优化器更新
+            # actor_optim.zero_grad()
+            # actor_loss.backward()
+            # torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_grad_norm)  # 梯度裁剪防止爆炸
+            # actor_optim.step()
+            #
+            # critic_optim.zero_grad()
+            # critic_loss.backward()
+            # torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_grad_norm)
+            # critic_optim.step()
+            # 对所有样本求平均
+
+        mean_actor_loss = torch.stack(all_actor_losses).mean()
+        mean_critic_loss = torch.stack(all_critic_losses).mean()
+        # mean_reward = torch.stack(all_rewards).mean()  # 平均损伤
+
+        # 一次性更新网络
+        actor_optim.zero_grad()
+        mean_actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_grad_norm)
+        actor_optim.step()
+
+        critic_optim.zero_grad()
+        mean_critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_grad_norm)
+        critic_optim.step()
+        step += 1
+        self.data.clear()
 
         # Save the weights
         global file_number
