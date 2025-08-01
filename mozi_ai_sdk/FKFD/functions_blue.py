@@ -747,3 +747,43 @@ def build_tij_matrix(acs_assign_weapon, targets_in_info):
             tij[i][j] = math.ceil( 2*defense / attack_power )
 
     return tij.tolist()
+
+def group_attack_aircraft(acs_assign_weapon):
+    groups_fighter = []
+    groups_bomber = []
+    leftover_acs = []
+
+    # 分类关键词
+    uav_keywords = ['无人战斗机', '无人机']
+    fighter_keywords = ['F-16DJ', '战斗机']
+    bomber_keywords = ['轰炸机']
+
+    # 分类
+    uavs, fighters, bombers, others = [], [], [], []
+
+    for info in acs_assign_weapon:
+        _, _, name, *_ = info
+        if any(k in name for k in uav_keywords):
+            uavs.append(info)
+        elif any(k in name for k in fighter_keywords):
+            fighters.append(info)
+        elif any(k in name for k in bomber_keywords):
+            bombers.append(info)
+        else:
+            others.append(info)
+
+    # 分组 1：4 UAV + 1 Fighter
+    while len(uavs) >= 4 and len(fighters) >= 1:
+        group = [uavs.pop() for _ in range(4)] + [fighters.pop()]
+        groups_fighter.extend(group)
+
+    # 分组 2：4 UAV + 1 Bomber
+    while len(uavs) >= 4 and len(bombers) >= 1:
+        group = [uavs.pop() for _ in range(4)] + [bombers.pop()]
+        groups_bomber.extend(group)
+
+    # 剩余未分配的全部加入 leftover
+    leftover_acs.extend(uavs + fighters + bombers + others)
+
+    return groups_fighter, groups_bomber, leftover_acs
+

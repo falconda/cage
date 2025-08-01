@@ -23,7 +23,8 @@ from mozi_ai_sdk.FKFD.env import etc
 from mozi_ai_sdk.FKFD.functions_red import feasibility, probability_of_hit, get_target_A, get_weapon_set, \
     get_current_num, weapon_info, get_class_num, transpose
 from mozi_ai_sdk.FKFD.functions_blue import (monitor_attack_results, monitor_aircraft_damage, pij_generate, evaluate_targets,
-                                             extract_targets_attributes, extract_target_encoded_attributes, apply_assignment_with_limits, build_tij_matrix, get_red_damage)
+                                             extract_targets_attributes, extract_target_encoded_attributes, apply_assignment_with_limits,
+                                             build_tij_matrix, get_red_damage, group_attack_aircraft)
 from mozi_ai_sdk.FKFD.dataProcess import processWtaData
 from mozi_ai_sdk.FKFD.GA_blue import WTA_GA
 from mozi_ai_sdk.FKFD.model_red import PN_WTA_red,reward_line
@@ -344,7 +345,7 @@ def run(env, blue_step, red_step):
     target_hit_name = []
 
     # 用于分配的武器名称
-    keywords = ['空地战术导弹', '直接攻击炸弹', '反坦克导弹', '小直径炸弹']
+    keywords = ['空地战术导弹', '直接攻击炸弹', '反坦克导弹', '小直径炸弹', '空对地导弹', '对陆导弹']
     flag = False
     step_count = 0
 
@@ -362,7 +363,7 @@ def run(env, blue_step, red_step):
     acs_ini = [
         ac.strName for ac in blue_side.get_aircrafts().values()
         if
-        any(t in ac.strName for t in ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机'])
+        any(t in ac.strName for t in ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机', '“诡骗丽影”无人战斗机'])
     ]
 
     while True:
@@ -415,7 +416,7 @@ def run(env, blue_step, red_step):
             acs = blue_side.get_aircrafts()
             acs_assign = [
                 ac for ac in acs.values()
-                if any(t in ac.strName for t in ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机'])
+                if any(t in ac.strName for t in ['F-16DJ战斗机', 'B-1B轰炸机', '女武神无人机', '枪骑兵轰炸机', '超级眼镜蛇直升机', '“诡骗丽影”无人战斗机'])
             ]
 
             # 将飞机信息转为列表结构，每个元素为：[飞机类对象, GUID, 名称, 纬度, 经度]
@@ -459,11 +460,58 @@ def run(env, blue_step, red_step):
             '''
             先结算要比生成前一轮  
             '''
-            if step_count == 1 or step_count > trigger and (step_count - trigger) % 30 == 0:
+            if step_count == 1:
+                if len(weapon_num) > 0 and len(targets_in_info) > 0:
+                    groups_fighter, groups_bomber, leftover_acs = group_attack_aircraft(acs_assign_weapon)
+                    # 合并两个组
+                    group_fighter_all = groups_fighter
+                    group_bomber_all = groups_bomber + leftover_acs
+
+                    # 对每个组分别进行任务分配和攻击执行
+                    for group in [group_fighter_all, group_bomber_all]:
+                        if not group:
+                            continue
+
+                        # 重新获取该组的武器数量
+                        weapon_num = [item[4] for item in group]  # 第5个字段是武器数量
+
+                        pij = pij_generate(targets_in_info, group)
+                        value = evaluate_targets(targets_in_info, facilities_in_info)
+                        tij = build_tij_matrix(group, targets_in_info)
+
+                        pair_mat, result = algorithm_blue.run(pij, value, weapon_num, tij)
+
+                        # 保存网络输出
+                        plan = apply_assignment_with_limits(pair_mat, tij, weapon_num)
+
+                        # 记录攻击方案
+                        attack_records = []
+                        for i in range(len(plan)):
+                            row = plan[i]
+                            ac, guid, name, weapon_name, count, wid = group[i]
+
+                            for j, num in enumerate(row):
+                                if num > 0 and j < len(targets_in_info):
+                                    target_obj, target_guid, target_name, target_lat, target_lon = targets_in_info[j]
+                                    ac.manual_attack(target_guid, wid, num)
+                                    attack_records.append([
+                                        ac, guid, name,
+                                        target_obj, target_guid, target_name, target_lat, target_lon,
+                                        weapon_name, wid, num
+                                    ])
+                                    logging.info(f"飞机 {name}（编号: {i}） 使用武器 {weapon_name}（数量: {num}） 攻击目标 {target_name}（编号: {j}）")
+                                    break  # 每架飞机只打一个目标
+
+                        all_attack_records.append(attack_records)
+
+            elif step_count > trigger and (step_count - trigger) % 30 == 0:
                 #  配对产生：设计算法和模型
                 if len(weapon_num) > 0 and len(targets_in_info) > 0:
+                    weapon_num = [item[4] for item in acs_assign_weapon]
                     pij = pij_generate(targets_in_info, acs_assign_weapon)
                     value = evaluate_targets(targets_in_info, facilities_in_info)
+                    # logging.info(f'价值评估{value}')
+                    # logging.info(f'价值评估对象{targets_in_info}')
                     # 具体使用多少数量的武器： tij决定
                     # tij = np.full((len(acs_assign_weapon), len(targets_in_info)), 2)
                     tij = build_tij_matrix(acs_assign_weapon, targets_in_info)
@@ -473,7 +521,7 @@ def run(env, blue_step, red_step):
                     # algorithm_blue = PN_WTA_blue(pij, value, weapon_num, tij, train_step)
                     # pair_mat, pair_plan, data_train_solo = algorithm_blue.run()
 
-                    pair_mat, result, data_train_solo = algorithm_blue.run(pij, value, weapon_num, tij)
+                    pair_mat, result = algorithm_blue.run(pij, value, weapon_num, tij)
                     # 保存网络输出
                     plan = apply_assignment_with_limits(pair_mat, tij, weapon_num)
                     # logging.info(f'产生plan{plan}, 对应适应度{b_fitness}')
@@ -604,13 +652,13 @@ def run(env, blue_step, red_step):
             #     logging.info(f'all_attack_logs:{all_attack_logs}')
             #     logging.info(f'all_damage_logs:{all_damage_logs}')
 
-            return data_train_solo
+            return None
 
-        data_train_solo = blue_move(blue_side, red_side)
-        # 只有真正产生时才收集
-        if data_train_solo is not None:
-            data_train_blue.append(data_train_solo)
-            # logging.info(f'data_train_solo:{data_train_solo}')
+        blue_move(blue_side, red_side)
+        # # 只有真正产生时才收集
+        # if data_train_solo is not None:
+        #     data_train_blue.append(data_train_solo)
+        #     # logging.info(f'data_train_solo:{data_train_solo}')
         count = count + 1
         # 基地价值阶段
         for k, v in enumerate(Base_guid):
@@ -2209,7 +2257,7 @@ def run(env, blue_step, red_step):
         else:
             pass
 
-    return r1, r2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue
+    return r1, r2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue
 
 
 def main():
@@ -2231,15 +2279,15 @@ def main():
         reward2_line = []
         reward_destory = []
         reward_damaged = []
-        for i in range(2):
-            for j in range(15):
+        for i in range(5):
+            for j in range(1):
                 print('开发模式')
                 env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
                                   scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
                                   duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
                                   app_mode=etc.app_mode)
 
-                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue = run(env, blue_step, red_step)
                 red_step += 1
                 algorithm_red.train_pointer(reward1, reward2)
 
@@ -2250,16 +2298,16 @@ def main():
             logging.info(f'reward1 = {reward1_line}')
             logging.info(f'reward2 = {reward2_line}')
             logging.info(f'reward_line = {reward_line}')
-            for j in range(15):
+            for j in range(1):
                 print('开发模式')
                 env = Environment(ip=etc.SERVER_IP, port=etc.SERVER_PORT, platform=etc.PLATFORM,
                                   scenario_name=etc.SCENARIO_NAME, simulate_compression=etc.SIMULATE_COMPRESSION,
                                   duration_interval=etc.DURATION_INTERVAL, synchronous=etc.SYNCHRONOUS,
                                   app_mode=etc.app_mode)
 
-                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue, data_train_blue = run(env, blue_step, red_step)
+                reward1, reward2, algorithm_red, reward_destory_blue, reward_damaged_blue, algorithm_blue = run(env, blue_step, red_step)
                 blue_step += 1
-                algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue, data_train_blue)
+                algorithm_blue.train_pointer(reward_destory_blue, reward_damaged_blue)
                 logging.info(f'reward_destory_blue: {reward_destory_blue}')
                 logging.info(f'reward_damaged_blue: {reward_damaged_blue}')
                 reward_destory.append(reward_destory_blue)

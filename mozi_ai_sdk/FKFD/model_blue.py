@@ -350,10 +350,10 @@ class PN_WTA_blue:
         self.data_line.append(tour_logp)
         self.data_line.append(critic_est)
         self.data.append(self.data_line)
-        return plan_mat, result, [data_line]
+        return plan_mat, result
 
 
-    def train_pointer(self, reward1, reward2, record_data):
+    def train_pointer(self, reward1, reward2):
         actor_optim = optim.Adam(self.actor_model.parameters(), lr=actor_lr)
         critic_optim = optim.Adam(self.critic_model.parameters(), lr=critic_lr)
         step = 0
